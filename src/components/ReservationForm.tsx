@@ -47,12 +47,12 @@ const reservationSchema = z.object({
   }
   return true;
 }, { message: "Company name is required for agent bookings", path: ["agentCompany"] })
-.refine((data) => {
-  if (data.bookingMethod === "agent") {
-    return data.agentContact && data.agentContact.trim().length > 0;
-  }
-  return true;
-}, { message: "Contact person is required for agent bookings", path: ["agentContact"] });
+  .refine((data) => {
+    if (data.bookingMethod === "agent") {
+      return data.agentContact && data.agentContact.trim().length > 0;
+    }
+    return true;
+  }, { message: "Contact person is required for agent bookings", path: ["agentContact"] });
 
 type ReservationFormData = z.infer<typeof reservationSchema>;
 
@@ -121,9 +121,37 @@ const ReservationForm = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-      {/* STEP 1: Trip Schedule */}
+      {/* STEP 1: Rates & Schedule */}
       <div className="section-card">
-        <SectionHeader step={1} title="Select Your Trip Schedule" subtitle="Choose your preferred voyage date" />
+        <SectionHeader
+          step={1}
+          title="Rates & Schedule"
+          subtitle="View our complete package rates, schedules, and voyage availability"
+        />
+        <div className="flex items-start gap-3 p-4 bg-background rounded-lg border border-primary/10">
+          <FileText className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm text-foreground">
+              Before proceeding, you may want to review our current packages.
+            </p>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                toast.info("Opening Rates & Schedule PDF...");
+              }}
+              className="text-primary underline underline-offset-4 font-semibold hover:text-primary/80 transition-colors inline-flex items-center gap-1 mt-2"
+            >
+              View Package Rates & Availability
+              <ChevronDown className="w-4 h-4 rotate-[270deg]" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* STEP 2: Trip Schedule */}
+      <div className="section-card">
+        <SectionHeader step={2} title="Select Your Trip Schedule" subtitle="Choose your preferred voyage date" />
         <div className="space-y-4">
           <div>
             <Label htmlFor="tripSchedule">Trip Schedule *</Label>
@@ -163,9 +191,9 @@ const ReservationForm = () => {
         </div>
       </div>
 
-      {/* STEP 2: Trip Type */}
+      {/* STEP 3: Trip Type */}
       <div className="section-card">
-        <SectionHeader step={2} title="Trip Type" subtitle="Select the itinerary package" />
+        <SectionHeader step={3} title="Trip Type" subtitle="Select the itinerary package" />
         <RadioGroup
           onValueChange={(val) => form.setValue("tripType", val)}
           value={form.watch("tripType")}
@@ -189,9 +217,9 @@ const ReservationForm = () => {
         )}
       </div>
 
-      {/* STEP 3: Booking Method */}
+      {/* STEP 4: Booking Method */}
       <div className="section-card">
-        <SectionHeader step={3} title="Booking Method" subtitle="How are you booking this trip?" />
+        <SectionHeader step={4} title="Booking Method" subtitle="How are you booking this trip?" />
         <RadioGroup
           onValueChange={(val) => form.setValue("bookingMethod", val)}
           value={watchBookingMethod}
@@ -233,9 +261,9 @@ const ReservationForm = () => {
         )}
       </div>
 
-      {/* STEP 4: Personal Details */}
+      {/* STEP 5: Personal Details */}
       <div className="section-card">
-        <SectionHeader step={4} title="Personal Details" subtitle="Your contact and booking information" />
+        <SectionHeader step={5} title="Personal Details" subtitle="Your contact and booking information" />
         <div className="form-grid">
           <div className="md:col-span-2">
             <Label htmlFor="fullName">Full Name (as per ID) *</Label>
@@ -299,9 +327,9 @@ const ReservationForm = () => {
         </div>
       </div>
 
-      {/* STEP 5: Preferred Cabin */}
+      {/* STEP 6: Preferred Cabin */}
       <div className="section-card">
-        <SectionHeader step={5} title="Preferred Cabin" subtitle="Select your preferred cabin type" />
+        <SectionHeader step={6} title="Preferred Cabin" subtitle="Select your preferred cabin type" />
         <RadioGroup
           onValueChange={(val) => form.setValue("preferredCabin", val)}
           value={form.watch("preferredCabin")}
@@ -333,9 +361,9 @@ const ReservationForm = () => {
         )}
       </div>
 
-      {/* STEP 6: Passenger Details */}
+      {/* STEP 7: Passenger Details */}
       <div className="section-card">
-        <SectionHeader step={6} title="Passenger Details" subtitle={`Enter details for each of your ${passengerCount} passenger(s)`} />
+        <SectionHeader step={7} title="Passenger Details" subtitle={`Enter details for each of your ${passengerCount} passenger(s)`} />
         <div className="space-y-4">
           {fields.map((field, index) => (
             <div key={field.id} className="border rounded-lg p-4 bg-background">
@@ -382,9 +410,9 @@ const ReservationForm = () => {
         </div>
       </div>
 
-      {/* STEP 7: Terms & Conditions */}
+      {/* STEP 8: Terms & Conditions */}
       <div className="section-card">
-        <SectionHeader step={7} title="Terms & Conditions" subtitle="Please review and accept before proceeding" />
+        <SectionHeader step={8} title="Terms & Conditions" subtitle="Please review and accept before proceeding" />
         <div className="bg-secondary/50 rounded-lg p-4 mb-4">
           <div className="flex items-start gap-2">
             <FileText className="w-5 h-5 text-primary mt-0.5 shrink-0" />
@@ -424,9 +452,9 @@ const ReservationForm = () => {
         )}
       </div>
 
-      {/* STEP 8: Agreement */}
+      {/* STEP 9: Agreement & Approval */}
       <div className="section-card">
-        <SectionHeader step={8} title="Agreement & Approval" subtitle="Type your full name as your digital signature" />
+        <SectionHeader step={9} title="Agreement & Approval" subtitle="Type your full name as your digital signature" />
         <div className="flex items-start gap-2 mb-4">
           <PenLine className="w-5 h-5 text-primary mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
@@ -438,7 +466,7 @@ const ReservationForm = () => {
           <Input
             id="agreementName"
             {...form.register("agreementName")}
-            className="mt-1.5 font-display text-lg"
+            className="mt-1.5 font-body text-lg"
             placeholder="Type your full name here"
           />
           {form.formState.errors.agreementName && (
