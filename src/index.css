@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Raleway:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -46,8 +46,8 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --font-display: 'Playfair Display', serif;
-    --font-body: 'Source Sans 3', sans-serif;
+    --font-display: 'Anton', sans-serif;
+    --font-body: 'Raleway', sans-serif;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -119,7 +119,10 @@
     font-family: var(--font-body);
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
   }
 }
@@ -159,12 +162,10 @@
   }
 
   .hero-gradient {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--ocean-deep)) 0%,
-      hsl(var(--primary)) 50%,
-      hsl(var(--accent)) 100%
-    );
+    background: linear-gradient(135deg,
+        hsl(var(--ocean-deep)) 0%,
+        hsl(var(--primary)) 50%,
+        hsl(var(--accent)) 100%);
   }
 
   .step-indicator {
