@@ -38,6 +38,7 @@ const reservationSchema = z.object({
   passengers: z.array(z.object({
     fullName: z.string().trim().min(1, "Passenger name is required").max(200),
     cabinType: z.string().min(1, "Cabin type is required"),
+    foodAllergies: z.string().optional(),
   })),
   termsAccepted: z.literal(true, { errorMap: () => ({ message: "You must accept the terms and conditions" }) }),
   agreementName: z.string().trim().min(1, "Please type your full name for agreement").max(200),
@@ -74,7 +75,7 @@ const ReservationForm = () => {
       phone: "",
       numberOfPassengers: 1,
       preferredCabin: "",
-      passengers: [{ fullName: "", cabinType: "" }],
+      passengers: [{ fullName: "", cabinType: "", foodAllergies: "" }],
       termsAccepted: undefined as unknown as true,
       agreementName: "",
     },
@@ -98,6 +99,7 @@ const ReservationForm = () => {
     const newPassengers = Array.from({ length: clamped }, (_, i) => ({
       fullName: fields[i]?.fullName || "",
       cabinType: fields[i]?.cabinType || "",
+      foodAllergies: fields[i]?.foodAllergies || "",
     }));
     replace(newPassengers);
   };
@@ -402,6 +404,17 @@ const ReservationForm = () => {
                   </Select>
                   {form.formState.errors.passengers?.[index]?.cabinType && (
                     <p className="text-xs text-destructive mt-1">{form.formState.errors.passengers[index]?.cabinType?.message}</p>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Food Allergies (Optional)</Label>
+                  <Input
+                    {...form.register(`passengers.${index}.foodAllergies`)}
+                    className="mt-1.5"
+                    placeholder="e.g. Peanuts, Shellfish, None"
+                  />
+                  {form.formState.errors.passengers?.[index]?.foodAllergies && (
+                    <p className="text-xs text-destructive mt-1">{form.formState.errors.passengers[index]?.foodAllergies?.message}</p>
                   )}
                 </div>
               </div>
