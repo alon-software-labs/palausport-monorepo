@@ -34,7 +34,7 @@ export function ReservationModal({
     if (!reservation) return;
     setIsGenerating(true);
     try {
-      const invoice = generateInvoice(reservation.id);
+      const invoice = await generateInvoice(reservation.id);
       if (invoice) {
         onGenerateInvoice?.(invoice);
       }

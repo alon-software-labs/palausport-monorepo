@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import {
   CruiseEvent,
   Reservation,
@@ -8,6 +8,7 @@ import {
   User,
   CabinType,
   Passenger,
+  ReservationStatus,
 } from './types';
 import { createClient } from '@/lib/supabase/client';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -21,152 +22,158 @@ function mapSupabaseUser(sbUser: SupabaseUser | null): User | null {
   };
 }
 
+// DB row types
+interface DbCruiseEvent {
+  id: number;
+  name: string;
+  date: string;
+  destination: string;
+  capacity: number;
+  current_bookings: number;
+  created_at: string;
+}
+
+interface DbReservation {
+  id: number;
+  event_id: number;
+  cabin_id: string;
+  cabin_type: CabinType;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  passengers: Passenger[] | null;
+  status: ReservationStatus;
+  total_guests: number;
+  total_price: number;
+  notes: string | null;
+  invoice_generated: boolean;
+  created_at: string;
+}
+
+interface DbInvoice {
+  id: number;
+  reservation_id: number;
+  invoice_number: string | null;
+  customer_name: string;
+  customer_email: string;
+  total_guests: number;
+  cabin_type: CabinType;
+  total_price: number;
+  generated_at: string;
+  allergies: string | null;
+}
+
+function mapEvent(row: DbCruiseEvent): CruiseEvent {
+  return {
+    id: String(row.id),
+    name: row.name,
+    date: row.date,
+    destination: row.destination,
+    capacity: row.capacity,
+    currentBookings: row.current_bookings,
+  };
+}
+
+function mapReservation(row: DbReservation): Reservation {
+  return {
+    id: String(row.id),
+    eventId: String(row.event_id),
+    cabinId: row.cabin_id,
+    cabinType: row.cabin_type,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    passengers: row.passengers ?? [],
+    status: row.status,
+    totalGuests: row.total_guests,
+    totalPrice: Number(row.total_price),
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    invoiceGenerated: row.invoice_generated,
+  };
+}
+
+function mapInvoice(row: DbInvoice): Invoice {
+  return {
+    id: String(row.id),
+    reservationId: String(row.reservation_id),
+    invoiceNumber: row.invoice_number ?? `INV-${String(row.id).padStart(5, '0')}`,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    totalGuests: row.total_guests,
+    cabinType: row.cabin_type,
+    totalPrice: Number(row.total_price),
+    generatedAt: row.generated_at,
+    allergies: row.allergies ?? undefined,
+  };
+}
+
 interface AppContextType {
   currentUser: User | null;
   events: CruiseEvent[];
   reservations: Reservation[];
   invoices: Invoice[];
+  isLoading: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  addReservation: (reservation: Reservation) => void;
-  updateReservation: (reservation: Reservation) => void;
-  deleteReservation: (id: string) => void;
-  generateInvoice: (reservationId: string) => Invoice | null;
+  addReservation: (reservation: Omit<Reservation, 'id'> & { id?: string }) => Promise<{ success: boolean; error?: string }>;
+  updateReservation: (reservation: Reservation) => Promise<{ success: boolean; error?: string }>;
+  deleteReservation: (id: string) => Promise<{ success: boolean; error?: string }>;
+  generateInvoice: (reservationId: string) => Promise<Invoice | null>;
   getInvoicesByReservation: (reservationId: string) => Invoice[];
-  populateDemoData: () => void;
   getEvent: (eventId: string) => CruiseEvent | undefined;
   getReservationsByEvent: (eventId: string) => Reservation[];
+  refetch: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Mock data generator
-function generateDemoData() {
-  const events: CruiseEvent[] = [
-    {
-      id: '1',
-      name: 'Caribbean Dream',
-      date: '2024-06-15',
-      destination: 'Caribbean Islands',
-      capacity: 26,
-      currentBookings: 0,
-    },
-    {
-      id: '2',
-      name: 'Mediterranean Escape',
-      date: '2024-07-20',
-      destination: 'Mediterranean Sea',
-      capacity: 26,
-      currentBookings: 0,
-    },
-    {
-      id: '3',
-      name: 'Alaska Adventure',
-      date: '2024-08-10',
-      destination: 'Alaska',
-      capacity: 26,
-      currentBookings: 0,
-    },
-  ];
-
-  const firstNames = ['John', 'Sarah', 'Michael', 'Emma', 'David', 'Lisa', 'James', 'Maria'];
-  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis'];
-  const allergies = [
-    'None',
-    'Peanuts',
-    'Shellfish',
-    'Dairy',
-    'Gluten',
-    'Nuts',
-    'Fish',
-  ];
-
-  const reservations: Reservation[] = [];
-
-  // Generate random reservations up to 26 pax
-  let currentPax = 0;
-  const maxPax = 26;
-  let i = 0;
-
-  while (currentPax < maxPax - 2 && i < 13) { // 13 rooms max
-    const guestCount = 2; // Each room has 2 pax as per request
-    const passengers: Passenger[] = [];
-
-    for (let j = 0; j < guestCount; j++) {
-      passengers.push({
-        id: `${i}-${j}`,
-        name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-        age: Math.floor(Math.random() * 60) + 18,
-        allergies: allergies[Math.floor(Math.random() * allergies.length)],
-      });
-    }
-
-    const cabinType = i < 9 ? 'BUNK' : 'QUEEN_SUITE';
-    const cabinPrices: Record<CabinType, number> = {
-      BUNK: 800,
-      QUEEN_SUITE: 1500,
-    };
-
-    reservations.push({
-      id: `res-${i}`,
-      eventId: `${Math.floor(Math.random() * 3) + 1}`,
-      cabinId: `cabin-${i + 1}`,
-      cabinType,
-      customerName: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-      customerEmail: `customer${i}@example.com`,
-      customerPhone: `555-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-      passengers,
-      status: 'CONFIRMED',
-      totalGuests: guestCount,
-      totalPrice: cabinPrices[cabinType],
-      notes: 'Demo reservation',
-      createdAt: new Date().toISOString(),
-      invoiceGenerated: false,
-    });
-
-    currentPax += guestCount;
-    i++;
-  }
-
-  return { events, reservations };
-}
-
-const DEFAULT_EVENTS: CruiseEvent[] = [
-  { id: '1', name: 'Caribbean Dream', date: '2024-06-15', destination: 'Caribbean Islands', capacity: 26, currentBookings: 0 },
-  { id: '2', name: 'Mediterranean Escape', date: '2024-07-20', destination: 'Mediterranean Sea', capacity: 26, currentBookings: 0 },
-  { id: '3', name: 'Alaska Adventure', date: '2024-08-10', destination: 'Alaska', capacity: 26, currentBookings: 0 },
-];
-
-function loadCruiseDataFromStorage(): {
-  events: CruiseEvent[];
-  reservations: Reservation[];
-  invoices: Invoice[];
-} {
-  if (typeof window === 'undefined') {
-    return { events: DEFAULT_EVENTS, reservations: [], invoices: [] };
-  }
-  const savedData = localStorage.getItem('cruiseData');
-  if (!savedData) {
-    return { events: DEFAULT_EVENTS, reservations: [], invoices: [] };
-  }
-  try {
-    const parsed = JSON.parse(savedData);
-    return {
-      events: parsed.events ?? DEFAULT_EVENTS,
-      reservations: parsed.reservations ?? [],
-      invoices: parsed.invoices ?? [],
-    };
-  } catch {
-    return { events: DEFAULT_EVENTS, reservations: [], invoices: [] };
-  }
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [events, setEvents] = useState<CruiseEvent[]>(() => loadCruiseDataFromStorage().events);
-  const [reservations, setReservations] = useState<Reservation[]>(() => loadCruiseDataFromStorage().reservations);
-  const [invoices, setInvoices] = useState<Invoice[]>(() => loadCruiseDataFromStorage().invoices);
+  const [events, setEvents] = useState<CruiseEvent[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    const supabase = createClient();
+    setError(null);
+
+    const [eventsRes, reservationsRes, invoicesRes] = await Promise.all([
+      supabase.from('cruise_events').select('*').order('date', { ascending: true }),
+      supabase.from('reservations').select('*').order('created_at', { ascending: false }),
+      supabase.from('invoices').select('*').order('generated_at', { ascending: false }),
+    ]);
+
+    if (eventsRes.error) {
+      setError(eventsRes.error.message);
+      return;
+    }
+    if (reservationsRes.error) {
+      setError(reservationsRes.error.message);
+      return;
+    }
+    if (invoicesRes.error) {
+      setError(invoicesRes.error.message);
+      return;
+    }
+
+    const reservationRows = (reservationsRes.data as DbReservation[]) ?? [];
+    const mappedReservations = reservationRows.map(mapReservation);
+    const mappedEvents = (eventsRes.data as DbCruiseEvent[]).map((row) => {
+      const event = mapEvent(row);
+      event.currentBookings = mappedReservations
+        .filter((r) => r.eventId === event.id)
+        .reduce((sum, r) => sum + r.totalGuests, 0);
+      return event;
+    });
+    setEvents(mappedEvents);
+    setReservations(mappedReservations);
+    setInvoices((invoicesRes.data as DbInvoice[]).map(mapInvoice));
+  }, []);
 
   // Supabase auth: get initial session and subscribe to changes
   useEffect(() => {
@@ -186,13 +193,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Save data to localStorage whenever it changes
+  // Fetch cruise data when authenticated
   useEffect(() => {
-    localStorage.setItem(
-      'cruiseData',
-      JSON.stringify({ events, reservations, invoices })
-    );
-  }, [events, reservations, invoices]);
+    if (!currentUser) {
+      queueMicrotask(() => {
+        setEvents([]);
+        setReservations([]);
+        setInvoices([]);
+        setIsLoading(false);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => setIsLoading(true));
+
+    (async () => {
+      await fetchData();
+      if (!cancelled) setIsLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [currentUser, fetchData]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const supabase = createClient();
@@ -226,79 +248,123 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
   };
 
-  const addReservation = (reservation: Reservation) => {
-    const totalGuests = reservations.reduce((sum, r) => sum + r.totalGuests, 0) + reservation.totalGuests;
-    if (totalGuests <= 26) {
-      setReservations([...reservations, reservation]);
+  const addReservation = async (reservation: Omit<Reservation, 'id'> & { id?: string }): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createClient();
+    const eventId = parseInt(reservation.eventId, 10);
+    if (isNaN(eventId)) {
+      return { success: false, error: 'Invalid event ID' };
     }
+
+    const { error } = await supabase.from('reservations').insert({
+      event_id: eventId,
+      cabin_id: reservation.cabinId,
+      cabin_type: reservation.cabinType,
+      customer_name: reservation.customerName,
+      customer_email: reservation.customerEmail,
+      customer_phone: reservation.customerPhone,
+      passengers: reservation.passengers,
+      status: reservation.status,
+      total_guests: reservation.totalGuests,
+      total_price: reservation.totalPrice,
+      notes: reservation.notes ?? null,
+      invoice_generated: false,
+    });
+
+    if (error) return { success: false, error: error.message };
+    await fetchData();
+    return { success: true };
   };
 
-  const updateReservation = (reservation: Reservation) => {
-    setReservations(reservations.map(r => (r.id === reservation.id ? reservation : r)));
+  const updateReservation = async (reservation: Reservation): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createClient();
+    const id = parseInt(reservation.id, 10);
+    if (isNaN(id)) return { success: false, error: 'Invalid reservation ID' };
+
+    const eventId = parseInt(reservation.eventId, 10);
+    if (isNaN(eventId)) return { success: false, error: 'Invalid event ID' };
+
+    const { error } = await supabase
+      .from('reservations')
+      .update({
+        event_id: eventId,
+        cabin_id: reservation.cabinId,
+        cabin_type: reservation.cabinType,
+        customer_name: reservation.customerName,
+        customer_email: reservation.customerEmail,
+        customer_phone: reservation.customerPhone,
+        passengers: reservation.passengers,
+        status: reservation.status,
+        total_guests: reservation.totalGuests,
+        total_price: reservation.totalPrice,
+        notes: reservation.notes ?? null,
+        invoice_generated: reservation.invoiceGenerated ?? false,
+      })
+      .eq('id', id);
+
+    if (error) return { success: false, error: error.message };
+    await fetchData();
+    return { success: true };
   };
 
-  const deleteReservation = (id: string) => {
-    setReservations(reservations.filter(r => r.id !== id));
+  const deleteReservation = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createClient();
+    const numId = parseInt(id, 10);
+    if (isNaN(numId)) return { success: false, error: 'Invalid reservation ID' };
+
+    const { error } = await supabase.from('reservations').delete().eq('id', numId);
+    if (error) return { success: false, error: error.message };
+    await fetchData();
+    return { success: true };
   };
 
-  const generateInvoice = (reservationId: string): Invoice | null => {
+  const generateInvoice = async (reservationId: string): Promise<Invoice | null> => {
     const reservation = reservations.find(r => r.id === reservationId);
     if (!reservation) return null;
 
-    const invoice: Invoice = {
-      id: `inv-${Date.now()}`,
-      reservationId,
-      invoiceNumber: `INV-${String(invoices.length + 1).padStart(5, '0')}`,
-      customerName: reservation.customerName,
-      customerEmail: reservation.customerEmail,
-      totalGuests: reservation.totalGuests,
-      cabinType: reservation.cabinType,
-      totalPrice: reservation.totalPrice,
-      generatedAt: new Date().toISOString(),
-      allergies: reservation.passengers.map(p => p.allergies || 'None').join(', '),
-    };
+    const supabase = createClient();
+    const resId = parseInt(reservationId, 10);
+    if (isNaN(resId)) return null;
 
-    setInvoices([...invoices, invoice]);
-    updateReservation({ ...reservation, invoiceGenerated: true });
+    const { data: invoiceRow, error } = await supabase
+      .from('invoices')
+      .insert({
+        reservation_id: resId,
+        customer_name: reservation.customerName,
+        customer_email: reservation.customerEmail,
+        total_guests: reservation.totalGuests,
+        cabin_type: reservation.cabinType,
+        total_price: reservation.totalPrice,
+        allergies: reservation.passengers?.map(p => p.allergies || 'None').join(', ') ?? null,
+      })
+      .select()
+      .single();
 
-    return invoice;
+    if (error) return null;
+
+    await supabase
+      .from('reservations')
+      .update({ invoice_generated: true })
+      .eq('id', resId);
+
+    await fetchData();
+
+    return mapInvoice(invoiceRow as DbInvoice);
   };
 
   const getInvoicesByReservation = (reservationId: string): Invoice[] => {
     return invoices.filter(i => i.reservationId === reservationId);
   };
 
-  const populateDemoData = () => {
-    const { events: demoEvents, reservations: demoReservations } = generateDemoData();
-
-    // Update current bookings for each event
-    const updatedEvents = demoEvents.map(event => {
-      const eventReservations = demoReservations.filter(r => r.eventId === event.id);
-      const totalBookings = eventReservations.reduce((sum, r) => sum + r.totalGuests, 0);
-      return {
-        ...event,
-        currentBookings: Math.min(totalBookings, event.capacity),
-      };
-    });
-
-    setEvents(updatedEvents);
-    setReservations(demoReservations);
-    setInvoices([]);
-  };
-
-  const getEvent = (eventId: string) => {
-    return events.find(e => e.id === eventId);
-  };
-
-  const getReservationsByEvent = (eventId: string) => {
-    return reservations.filter(r => r.eventId === eventId);
-  };
+  const getEvent = (eventId: string) => events.find(e => e.id === eventId);
+  const getReservationsByEvent = (eventId: string) => reservations.filter(r => r.eventId === eventId);
 
   const value: AppContextType = {
     currentUser,
     events,
     reservations,
     invoices,
+    isLoading,
+    error,
     login,
     signUp,
     logout,
@@ -307,9 +373,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteReservation,
     generateInvoice,
     getInvoicesByReservation,
-    populateDemoData,
     getEvent,
     getReservationsByEvent,
+    refetch: fetchData,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
