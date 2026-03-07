@@ -62,7 +62,7 @@ const ReservationFormPage = () => {
       <HeaderBar user={currentUser} />
       <HeroBanner />
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <ReservationForm />
+        <ReservationForm currentUser={currentUser} />
       </main>
       <footer className="border-t py-6 text-center">
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">

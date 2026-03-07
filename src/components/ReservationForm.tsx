@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User } from "@/contexts/AuthContext";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,10 +69,15 @@ const reservationSchema = z.object({
 
 type ReservationFormData = z.infer<typeof reservationSchema>;
 
-const ReservationForm = () => {
+interface ReservationFormProps {
+  currentUser?: User | null;
+}
+
+const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   const navigate = useNavigate();
   const [passengerCount, setPassengerCount] = useState(1);
   const [selectedBaseType, setSelectedBaseType] = useState<'queen' | 'twin' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -99,6 +105,15 @@ const ReservationForm = () => {
     control: form.control,
     name: "passengers",
   });
+
+  useEffect(() => {
+    if (currentUser) {
+      const email = form.getValues("email");
+      const fullName = form.getValues("fullName");
+      if (!email) form.setValue("email", currentUser.email);
+      if (!fullName) form.setValue("fullName", currentUser.name);
+    }
+  }, [currentUser, form]);
 
   const watchBookingMethod = form.watch("bookingMethod");
   const watchTrip = form.watch("tripSchedule");
@@ -132,6 +147,7 @@ const ReservationForm = () => {
       foodAllergies: p.foodAllergies || undefined,
     }));
 
+    setIsSubmitting(true);
     const supabase = createSupabaseClient();
     const { error } = await supabase.from("reservations").insert({
       event_id: eventId,
@@ -151,10 +167,12 @@ const ReservationForm = () => {
     });
 
     if (error) {
+      setIsSubmitting(false);
       toast.error("Failed to submit reservation", { description: error.message });
       return;
     }
 
+    setIsSubmitting(false);
     toast.success("Reservation submitted successfully!", {
       description: "We'll send a confirmation to your email shortly.",
     });
@@ -568,9 +586,9 @@ const ReservationForm = () => {
 
       {/* Submit */}
       <div className="flex justify-center pb-8">
-        <Button type="submit" size="lg" className="px-12 text-base font-semibold">
+        <Button type="submit" size="lg" className="px-12 text-base font-semibold" disabled={isSubmitting}>
           <Ship className="w-5 h-5 mr-2" />
-          Submit Reservation
+          {isSubmitting ? "Submitting..." : "Submit Reservation"}
         </Button>
       </div>
     </form>
