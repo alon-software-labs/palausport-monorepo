@@ -52,6 +52,7 @@ const reservationSchema = z.object({
     cabinType: z.string().min(1, "Cabin type is required"),
     foodAllergies: z.string().optional(),
   })),
+  notes: z.string().optional(),
   termsAccepted: z.literal(true, { errorMap: () => ({ message: "You must accept the terms and conditions" }) }),
   agreementName: z.string().trim().min(1, "Please type your full name for agreement").max(200),
 }).refine((data) => {
@@ -96,6 +97,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       selectedCabinId: "",
       preferredCabin: "",
       passengers: [{ fullName: "", cabinType: "", foodAllergies: "" }],
+      notes: "",
       termsAccepted: undefined as unknown as true,
       agreementName: "",
     },
@@ -160,9 +162,16 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       status: "PENDING",
       total_guests: data.numberOfPassengers,
       total_price: 0,
-      notes: data.bookingMethod === "agent" && data.agentCompany
-        ? `Agent: ${data.agentCompany}${data.agentContact ? `, Contact: ${data.agentContact}` : ""}`
-        : null,
+      notes: (() => {
+        const parts: string[] = [];
+        if (data.bookingMethod === "agent" && data.agentCompany) {
+          parts.push(`Agent: ${data.agentCompany}${data.agentContact ? `, Contact: ${data.agentContact}` : ""}`);
+        }
+        if (data.notes && data.notes.trim()) {
+          parts.push(data.notes.trim());
+        }
+        return parts.length > 0 ? parts.join(" | ") : null;
+      })(),
       invoice_generated: false,
     });
 
@@ -401,6 +410,10 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
             {form.formState.errors.address && (
               <p className="text-xs text-destructive mt-1">{form.formState.errors.address.message}</p>
             )}
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="notes">Notes / Special Requests (Optional)</Label>
+            <Textarea id="notes" {...form.register("notes")} className="mt-1.5" placeholder="e.g. dietary needs, special accommodations, other requests..." rows={3} />
           </div>
         </div>
       </div>
