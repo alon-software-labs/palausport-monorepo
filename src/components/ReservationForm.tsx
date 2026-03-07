@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Ship, UserPlus, FileText, PenLine, ChevronDown } from "lucide-react";
+import { createSupabaseClient } from "@/lib/supabase/client";
+import { getEventId, cabinTypeIdToDb } from "@/lib/reservation-mapping";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 
 import { TRIP_SCHEDULES, TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS } from "@/data/reservationData";
+
+function availabilityBadgeVariant(count: number, threshold = 5): "default" | "secondary" | "destructive" {
+  if (count > threshold) return "default";
+  if (count > 0) return "secondary";
+  return "destructive";
+}
 import { CabinSelectionMap } from "./CabinSelectionMap";
 
 const reservationSchema = z.object({
@@ -108,11 +116,47 @@ const ReservationForm = () => {
     replace(newPassengers);
   };
 
-  const onSubmit = (data: ReservationFormData) => {
-    console.log("Reservation submitted:", data);
+  const onSubmit = async (data: ReservationFormData) => {
+    const eventId = getEventId(data.tripSchedule);
+    if (eventId == null) {
+      toast.error("Invalid trip schedule selected.");
+      return;
+    }
+
+    const cabinType = cabinTypeIdToDb(data.preferredCabin);
+    const passengers = data.passengers.map((p) => ({
+      fullName: p.fullName,
+      cabinType: p.cabinType,
+      foodAllergies: p.foodAllergies || undefined,
+    }));
+
+    const supabase = createSupabaseClient();
+    const { error } = await supabase.from("reservations").insert({
+      event_id: eventId,
+      cabin_id: data.selectedCabinId,
+      cabin_type: cabinType,
+      customer_name: data.fullName,
+      customer_email: data.email,
+      customer_phone: data.phone,
+      passengers,
+      status: "PENDING",
+      total_guests: data.numberOfPassengers,
+      total_price: 0,
+      notes: data.bookingMethod === "agent" && data.agentCompany
+        ? `Agent: ${data.agentCompany}${data.agentContact ? `, Contact: ${data.agentContact}` : ""}`
+        : null,
+      invoice_generated: false,
+    });
+
+    if (error) {
+      toast.error("Failed to submit reservation", { description: error.message });
+      return;
+    }
+
     toast.success("Reservation submitted successfully!", {
       description: "We'll send a confirmation to your email shortly.",
     });
+    window.dispatchEvent(new CustomEvent("reservation-created"));
   };
 
   const handleCabinSelect = (cabinId: string, baseType: 'queen' | 'twin') => {
@@ -177,7 +221,7 @@ const ReservationForm = () => {
                   <SelectItem key={trip.id} value={trip.id} disabled={trip.slotsAvailable === 0}>
                     <div className="flex items-center gap-3 w-full">
                       <span>{trip.label} — {trip.dateRange}</span>
-                      <Badge variant={trip.slotsAvailable > 5 ? "default" : trip.slotsAvailable > 0 ? "secondary" : "destructive"} className="ml-auto text-[10px]">
+                      <Badge variant={availabilityBadgeVariant(trip.slotsAvailable)} className="ml-auto text-[10px]">
                         {trip.slotsAvailable} slots
                       </Badge>
                     </div>
@@ -377,7 +421,7 @@ const ReservationForm = () => {
                     <div className="flex-1">
                       <div className="flex items-start justify-between">
                         <p className="text-sm font-semibold text-foreground">{cabin.label}</p>
-                        <Badge variant={available > 2 ? "default" : available > 0 ? "secondary" : "destructive"} className="text-[10px] ml-2 shrink-0">
+                        <Badge variant={availabilityBadgeVariant(available, 2)} className="text-[10px] ml-2 shrink-0">
                           {available} left
                         </Badge>
                       </div>
