@@ -4,6 +4,8 @@ import { supabaseKey, supabaseUrl } from './config';
 
 const PROTECTED_PREFIXES = ['/dashboard', '/reservations', '/invoices'];
 const AUTH_PAGES = ['/login', '/signup'];
+const RESERVATION_APP_URL =
+  process.env.NEXT_PUBLIC_RESERVATION_APP_URL ?? 'https://alon-software-labs.github.io/palausport-reservation-ui/';
 
 function isProtectedRoute(pathname: string) {
   return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -35,7 +37,6 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: Call getClaims immediately after creating the client to refresh the session
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
@@ -46,11 +47,20 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Restrict CRM to employees only: clients and users without role go to reservation app
+  const userRole = user?.user_role as string | undefined;
+  if (isProtectedRoute(request.nextUrl.pathname) && user && userRole !== 'employee') {
+    return NextResponse.redirect(RESERVATION_APP_URL);
+  }
+
   // Redirect authenticated users away from auth pages
   if (isAuthPage(request.nextUrl.pathname) && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    if (userRole === 'employee') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.redirect(RESERVATION_APP_URL);
   }
 
   return supabaseResponse;
