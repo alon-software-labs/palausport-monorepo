@@ -21,6 +21,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 
 import { TRIP_SCHEDULES, TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS } from "@/data/reservationData";
+import { CabinSelectionMap } from "./CabinSelectionMap";
 
 const reservationSchema = z.object({
   tripSchedule: z.string().min(1, "Please select a trip schedule"),
@@ -34,7 +35,8 @@ const reservationSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   phone: z.string().trim().min(1, "Phone number is required").max(30),
   numberOfPassengers: z.coerce.number().min(1, "At least 1 passenger").max(22, "Maximum 22 passengers"),
-  preferredCabin: z.string().min(1, "Please select a cabin type"),
+  selectedCabinId: z.string().min(1, "Please select a specific cabin from the map"),
+  preferredCabin: z.string().min(1, "Please select an occupancy rate for your cabin"),
   passengers: z.array(z.object({
     fullName: z.string().trim().min(1, "Passenger name is required").max(200),
     cabinType: z.string().min(1, "Cabin type is required"),
@@ -59,6 +61,7 @@ type ReservationFormData = z.infer<typeof reservationSchema>;
 
 const ReservationForm = () => {
   const [passengerCount, setPassengerCount] = useState(1);
+  const [selectedBaseType, setSelectedBaseType] = useState<'queen' | 'twin' | null>(null);
 
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -74,6 +77,7 @@ const ReservationForm = () => {
       email: "",
       phone: "",
       numberOfPassengers: 1,
+      selectedCabinId: "",
       preferredCabin: "",
       passengers: [{ fullName: "", cabinType: "", foodAllergies: "" }],
       termsAccepted: undefined as unknown as true,
@@ -109,6 +113,13 @@ const ReservationForm = () => {
     toast.success("Reservation submitted successfully!", {
       description: "We'll send a confirmation to your email shortly.",
     });
+  };
+
+  const handleCabinSelect = (cabinId: string, baseType: 'queen' | 'twin') => {
+    form.setValue("selectedCabinId", cabinId, { shouldValidate: true });
+    setSelectedBaseType(baseType);
+    // Reset rate specific to avoid mismatched options
+    form.setValue("preferredCabin", "", { shouldValidate: true });
   };
 
   const SectionHeader = ({ step, title, subtitle }: { step: number; title: string; subtitle: string }) => (
@@ -331,35 +342,55 @@ const ReservationForm = () => {
 
       {/* STEP 6: Preferred Cabin */}
       <div className="section-card">
-        <SectionHeader step={6} title="Preferred Cabin" subtitle="Select your preferred cabin type" />
-        <RadioGroup
-          onValueChange={(val) => form.setValue("preferredCabin", val)}
-          value={form.watch("preferredCabin")}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-        >
-          {CABIN_TYPES.map((cabin) => {
-            const available = cabin.totalInventory - cabin.booked;
-            return (
-              <label
-                key={cabin.id}
-                className={`cabin-card flex items-start gap-3 ${form.watch("preferredCabin") === cabin.id ? "selected" : ""}`}
-              >
-                <RadioGroupItem value={cabin.id} className="mt-0.5" disabled={available === 0} />
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
-                    <p className="text-sm font-semibold text-foreground">{cabin.label}</p>
-                    <Badge variant={available > 2 ? "default" : available > 0 ? "secondary" : "destructive"} className="text-[10px] ml-2 shrink-0">
-                      {available} left
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">{cabin.description}</p>
-                </div>
-              </label>
-            );
-          })}
-        </RadioGroup>
-        {form.formState.errors.preferredCabin && (
-          <p className="text-xs text-destructive mt-2">{form.formState.errors.preferredCabin.message}</p>
+        <SectionHeader step={6} title="Preferred Cabin" subtitle="Select your preferred cabin location on the deck plan, then choose your occupancy rate" />
+
+        {/* The New Map */}
+        <div className="mb-6">
+          <CabinSelectionMap
+            onSelect={handleCabinSelect}
+            selectedCabinId={form.watch("selectedCabinId")}
+          />
+          {form.formState.errors.selectedCabinId && (
+            <p className="text-xs text-destructive mt-2 text-center">{form.formState.errors.selectedCabinId.message}</p>
+          )}
+        </div>
+
+        {selectedBaseType && (
+          <div className="pt-6 border-t animate-in fade-in slide-in-from-top-4">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-foreground">Occupancy Rate for {form.watch("selectedCabinId")}</h3>
+              <p className="text-xs text-muted-foreground">Select how you will be occupying this cabin</p>
+            </div>
+            <RadioGroup
+              onValueChange={(val) => form.setValue("preferredCabin", val)}
+              value={form.watch("preferredCabin")}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            >
+              {CABIN_TYPES.filter(c => c.id.startsWith(selectedBaseType)).map((cabin) => {
+                const available = cabin.totalInventory - cabin.booked;
+                return (
+                  <label
+                    key={cabin.id}
+                    className={`cabin-card flex items-start gap-3 ${form.watch("preferredCabin") === cabin.id ? "selected" : ""}`}
+                  >
+                    <RadioGroupItem value={cabin.id} className="mt-0.5" disabled={available === 0} />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm font-semibold text-foreground">{cabin.label}</p>
+                        <Badge variant={available > 2 ? "default" : available > 0 ? "secondary" : "destructive"} className="text-[10px] ml-2 shrink-0">
+                          {available} left
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{cabin.description}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </RadioGroup>
+            {form.formState.errors.preferredCabin && (
+              <p className="text-xs text-destructive mt-2">{form.formState.errors.preferredCabin.message}</p>
+            )}
+          </div>
         )}
       </div>
 
