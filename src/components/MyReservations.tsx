@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Calendar, Ship } from "lucide-react";
 
 interface ReservationRow {
@@ -87,7 +89,10 @@ export function MyReservations() {
     return (
       <div className="section-card">
         <h2 className="section-title mb-4">My Reservations</h2>
-        <p className="text-muted-foreground text-sm">You have no reservations yet. Create one using the form below.</p>
+        <p className="text-muted-foreground text-sm mb-4">You have no reservations yet.</p>
+        <Button asChild>
+          <Link to="/reservations/new">Create your first reservation</Link>
+        </Button>
       </div>
     );
   }

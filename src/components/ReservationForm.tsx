@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,6 +69,7 @@ const reservationSchema = z.object({
 type ReservationFormData = z.infer<typeof reservationSchema>;
 
 const ReservationForm = () => {
+  const navigate = useNavigate();
   const [passengerCount, setPassengerCount] = useState(1);
   const [selectedBaseType, setSelectedBaseType] = useState<'queen' | 'twin' | null>(null);
 
@@ -157,6 +159,7 @@ const ReservationForm = () => {
       description: "We'll send a confirmation to your email shortly.",
     });
     window.dispatchEvent(new CustomEvent("reservation-created"));
+    navigate("/reservations");
   };
 
   const handleCabinSelect = (cabinId: string, baseType: 'queen' | 'twin') => {

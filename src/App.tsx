@@ -7,6 +7,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ReservationList from "./pages/ReservationList";
+import ReservationFormPage from "./pages/ReservationFormPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +23,8 @@ function App() {
         <HashRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/reservations" element={<ReservationList />} />
+            <Route path="/reservations/new" element={<ReservationFormPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="*" element={<NotFound />} />
