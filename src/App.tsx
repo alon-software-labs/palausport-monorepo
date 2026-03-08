@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ReservationList from "./pages/ReservationList";
 import ReservationFormPage from "./pages/ReservationFormPage";
+import ReservationChat from "./pages/ReservationChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ function App() {
             <Route path="/" element={<Index />} />
             <Route path="/reservations" element={<ReservationList />} />
             <Route path="/reservations/new" element={<ReservationFormPage />} />
+            <Route path="/reservations/:id/chat" element={<ReservationChat />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="*" element={<NotFound />} />

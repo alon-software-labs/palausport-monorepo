@@ -1,35 +1,11 @@
 import { Link } from "react-router-dom";
 import HeroBanner from "@/components/HeroBanner";
+import { Navbar } from "@/components/Navbar";
 import ReservationForm from "@/components/ReservationForm";
 import { ClientRouteGuard } from "@/components/ClientRouteGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Anchor } from "lucide-react";
-
-function HeaderBar({ user }: { user: { email: string } }) {
-  const { logout } = useAuth();
-  return (
-    <div className="flex justify-between items-center gap-3 px-4 py-2 border-b bg-background/80">
-      <div className="flex gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/">Home</Link>
-        </Button>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/reservations">My Reservations</Link>
-        </Button>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/reservations/new">New Reservation</Link>
-        </Button>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Signed in as {user.email}</span>
-        <Button variant="ghost" size="sm" onClick={() => logout()}>
-          Log out
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 const ReservationFormPage = () => {
   const { currentUser, userRole, isLoading } = useAuth();
@@ -59,7 +35,7 @@ const ReservationFormPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <HeaderBar user={currentUser} />
+      <Navbar user={currentUser} />
       <HeroBanner />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <ReservationForm currentUser={currentUser} />

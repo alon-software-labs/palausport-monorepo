@@ -1,39 +1,10 @@
 import { Link } from "react-router-dom";
 import HeroBanner from "@/components/HeroBanner";
+import { Navbar } from "@/components/Navbar";
 import { ClientRouteGuard } from "@/components/ClientRouteGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Anchor, ClipboardList, List, Plus, Ticket } from "lucide-react";
-
-function HeaderBar({ user }: { user: { email: string } }) {
-  const { logout } = useAuth();
-  return (
-    <div className="flex justify-between items-center gap-3 px-4 py-2 border-b bg-background/80">
-      <div className="flex gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/reservations">
-            <List className="w-4 h-4 mr-1" />
-            My Reservations
-          </Link>
-        </Button>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/reservations/new">
-            <Plus className="w-4 h-4 mr-1" />
-            New Reservation
-          </Link>
-        </Button>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">
-          Signed in as {user.email}
-        </span>
-        <Button variant="ghost" size="sm" onClick={() => logout()}>
-          Log out
-        </Button>
-      </div>
-    </div>
-  );
-}
+import { Anchor, ClipboardList, Ticket } from "lucide-react";
 
 const Index = () => {
   const { currentUser, userRole, isLoading } = useAuth();
@@ -52,7 +23,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {currentUser && <HeaderBar user={currentUser} />}
+      {currentUser && <Navbar user={currentUser} />}
       <HeroBanner />
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">

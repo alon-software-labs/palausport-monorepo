@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Ship } from "lucide-react";
+import { Calendar, MessageSquare, Ship } from "lucide-react";
 
 interface ReservationRow {
   id: number;
@@ -21,6 +21,12 @@ interface ReservationRow {
   cruise_events: { name: string; date: string } | null;
 }
 
+interface LastMessage {
+  reservation_id: number;
+  content: string;
+  created_at: string;
+}
+
 function statusToBadgeVariant(status: string): "default" | "secondary" | "outline" {
   if (status === "CONFIRMED") return "default";
   if (status === "PENDING") return "secondary";
@@ -30,6 +36,7 @@ function statusToBadgeVariant(status: string): "default" | "secondary" | "outlin
 export function MyReservations() {
   const { currentUser } = useAuth();
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
+  const [lastMessages, setLastMessages] = useState<Record<number, LastMessage>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,9 +64,40 @@ export function MyReservations() {
       });
   }, [currentUser?.email]);
 
+  const fetchLastMessages = useCallback(
+    (reservationIds: number[]) => {
+      if (reservationIds.length === 0) return;
+      const supabase = createSupabaseClient();
+      supabase
+        .from("chat_messages")
+        .select("reservation_id, content, created_at")
+        .in("reservation_id", reservationIds)
+        .order("created_at", { ascending: false })
+        .then(({ data }) => {
+          const byRes: Record<number, LastMessage> = {};
+          (data ?? []).forEach((row: LastMessage) => {
+            if (!byRes[row.reservation_id]) byRes[row.reservation_id] = row;
+          });
+          setLastMessages(byRes);
+        });
+    },
+    []
+  );
+
   useEffect(() => {
     fetchReservations();
   }, [fetchReservations]);
+
+  useEffect(() => {
+    const active = reservations.filter(
+      (r) => r.status === "PENDING" || r.status === "CONFIRMED"
+    );
+    if (active.length > 0) {
+      fetchLastMessages(active.map((r) => r.id));
+    } else {
+      setLastMessages({});
+    }
+  }, [reservations, fetchLastMessages]);
 
   useEffect(() => {
     const handler = () => fetchReservations();
@@ -119,8 +157,23 @@ export function MyReservations() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0 text-sm text-muted-foreground">
-              Booked on {new Date(r.created_at).toLocaleDateString()}
-              {r.total_price > 0 && ` • ${r.total_price.toLocaleString()} total`}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Booked on {new Date(r.created_at).toLocaleDateString()}
+                  {r.total_price > 0 && ` • ${r.total_price.toLocaleString()} total`}
+                </span>
+                {(r.status === "PENDING" || r.status === "CONFIRMED") && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`/reservations/${r.id}/chat`} className="flex items-center gap-2">
+                      {lastMessages[r.id] && (
+                        <span className="size-2 rounded-full bg-primary shrink-0" aria-label="New messages" />
+                      )}
+                      <MessageSquare className="w-4 h-4" />
+                      Chat Support
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
