@@ -3,14 +3,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '@/lib/context';
 import { createClient } from '@/lib/supabase/client';
-import { Reservation } from '@/lib/types';
+import { Reservation, ReservationStatus } from '@/lib/types';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
 
 interface ChatMessage {
   id: number;
@@ -33,23 +41,32 @@ interface ThreadRead {
   read_at: string;
 }
 
-const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED'] as const;
+const FILTER_STATUSES: ReservationStatus[] = ['PENDING', 'CONFIRMED', 'COMPLETED'];
 
 export default function ChatPage() {
-  const { reservations, currentUser, getEvent } = useAppContext();
-  const [showCompletedCancelled, setShowCompletedCancelled] = useState(false);
+  const { reservations, currentUser, getEvent, updateReservation } = useAppContext();
+  const [activeFilters, setActiveFilters] = useState<ReservationStatus[]>(['PENDING', 'CONFIRMED']);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
   const [threadReads, setThreadReads] = useState<Record<string, string>>({});
 
   const filteredReservations = useMemo(
     () =>
-      reservations.filter((r) => showCompletedCancelled || ACTIVE_STATUSES.includes(r.status)),
-    [reservations, showCompletedCancelled]
+      reservations.filter((r) => activeFilters.includes(r.status)),
+    [reservations, activeFilters]
   );
+
+  const toggleFilter = (status: ReservationStatus) => {
+    setActiveFilters((prev) =>
+      prev.includes(status)
+        ? prev.filter((s) => s !== status)
+        : [...prev, status]
+    );
+  };
 
   const sortedReservations = useMemo(() => {
     return [...filteredReservations].sort((a, b) => {
@@ -183,6 +200,25 @@ export default function ChatPage() {
     }
   };
 
+  const handleStatusUpdate = async (newStatus: ReservationStatus) => {
+    if (!selectedReservation) return;
+
+    setIsUpdatingStatus(true);
+    const { success, error } = await updateReservation({
+      ...selectedReservation,
+      status: newStatus,
+    });
+
+    setIsUpdatingStatus(false);
+
+    if (success) {
+      toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+      setSelectedReservation((prev) => (prev ? { ...prev, status: newStatus } : null));
+    } else {
+      toast.error(error || 'Failed to update status');
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] min-h-0 overflow-hidden animate-in fade-in duration-300">
       <div className="shrink-0">
@@ -198,15 +234,18 @@ export default function ChatPage() {
       >
         <ResizablePanel defaultSize={35} minSize={20}>
           <div className="flex flex-col h-full min-h-0 p-4">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <Label htmlFor="show-all" className="text-sm whitespace-nowrap">
-                Show completed/cancelled
-              </Label>
-              <Switch
-                id="show-all"
-                checked={showCompletedCancelled}
-                onCheckedChange={setShowCompletedCancelled}
-              />
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {FILTER_STATUSES.map((status) => (
+                <Button
+                  key={status}
+                  variant={activeFilters.includes(status) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleFilter(status)}
+                  className="rounded-full h-8 text-xs font-medium px-3 uppercase tracking-wider"
+                >
+                  {status.replace('_', ' ')}
+                </Button>
+              ))}
             </div>
             <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="space-y-1">
@@ -223,23 +262,21 @@ export default function ChatPage() {
                       key={r.id}
                       type="button"
                       onClick={() => setSelectedReservation(r)}
-                      className={`w-full text-left p-3 rounded-lg transition-colors ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground'
-                          : isUnread
-                            ? 'hover:bg-muted'
-                            : 'opacity-70 hover:opacity-90 hover:bg-muted/50'
-                      }`}
+                      className={`w-full text-left p-3 rounded-lg transition-colors ${isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : isUnread
+                          ? 'hover:bg-muted'
+                          : 'opacity-70 hover:opacity-90 hover:bg-muted/50'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <span
-                          className={`shrink-0 size-2 rounded-full ${
-                            isUnread
-                              ? isSelected
-                                ? 'bg-primary-foreground'
-                                : 'bg-primary'
-                              : 'invisible'
-                          }`}
+                          className={`shrink-0 size-2 rounded-full ${isUnread
+                            ? isSelected
+                              ? 'bg-primary-foreground'
+                              : 'bg-primary'
+                            : 'invisible'
+                            }`}
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
@@ -247,13 +284,23 @@ export default function ChatPage() {
                               {r.customerName} • {event?.name ?? `Event #${r.eventId}`} • Cabin{' '}
                               {r.cabinId}
                             </p>
-                            <span className="shrink-0 text-sm font-medium">{r.status}</span>
+                            <span
+                              className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${r.status === 'PENDING'
+                                ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                : r.status === 'CONFIRMED'
+                                  ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                  : r.status === 'COMPLETED'
+                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                }`}
+                            >
+                              {r.status.replace('_', ' ')}
+                            </span>
                           </div>
                           {lastMsg ? (
                             <div
-                              className={`flex items-center justify-between gap-2 mt-2 text-sm ${
-                                isSelected ? 'opacity-90' : 'text-muted-foreground'
-                              }`}
+                              className={`flex items-center justify-between gap-2 mt-2 text-sm ${isSelected ? 'opacity-90' : 'text-muted-foreground'
+                                }`}
                             >
                               <span className="truncate min-w-0">{lastMsg.content}</span>
                               <span className="shrink-0 whitespace-nowrap">
@@ -262,9 +309,8 @@ export default function ChatPage() {
                             </div>
                           ) : (
                             <p
-                              className={`text-sm mt-2 ${
-                                isSelected ? 'opacity-70' : 'text-muted-foreground'
-                              }`}
+                              className={`text-sm mt-2 ${isSelected ? 'opacity-70' : 'text-muted-foreground'
+                                }`}
                             >
                               No messages yet
                             </p>
@@ -283,12 +329,39 @@ export default function ChatPage() {
           <div className="flex flex-col h-full min-h-0 overflow-hidden">
             {selectedReservation ? (
               <>
-                <div className="p-4 border-b shrink-0">
-                  <h2 className="font-semibold">{selectedReservation.customerName}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {getEvent(selectedReservation.eventId)?.name} • Cabin{' '}
-                    {selectedReservation.cabinId} • {selectedReservation.status}
-                  </p>
+                <div className="p-4 border-b shrink-0 flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold text-lg">{selectedReservation.customerName}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {getEvent(selectedReservation.eventId)?.name} • Cabin{' '}
+                      {selectedReservation.cabinId}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right mr-2 hidden sm:block">
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</p>
+                      <p className="text-sm font-medium">{selectedReservation.status.replace('_', ' ')}</p>
+                    </div>
+                    <Select
+                      value={selectedReservation.status}
+                      onValueChange={(value) => handleStatusUpdate(value as ReservationStatus)}
+                      disabled={isUpdatingStatus}
+                    >
+                      <SelectTrigger className="w-[140px] h-9">
+                        {isUpdatingStatus ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <SelectValue placeholder="Change Status" />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING">Pending</SelectItem>
+                        <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <ScrollArea className="flex-1 min-h-0 p-4 pt-8">
                   <div className="space-y-4">
@@ -300,16 +373,14 @@ export default function ChatPage() {
                       messages.map((m) => (
                         <div
                           key={m.id}
-                          className={`flex ${
-                            m.sender_role === 'employee' ? 'justify-end' : 'justify-start'
-                          }`}
+                          className={`flex ${m.sender_role === 'employee' ? 'justify-end' : 'justify-start'
+                            }`}
                         >
                           <div
-                            className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                              m.sender_role === 'employee'
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted'
-                            }`}
+                            className={`max-w-[80%] rounded-lg px-4 py-3 ${m.sender_role === 'employee'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted'
+                              }`}
                           >
                             <p className="text-xs opacity-80">{m.sender_name}</p>
                             <div className="flex flex-row items-baseline justify-between gap-4 mt-1.5">
