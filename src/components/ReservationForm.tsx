@@ -24,7 +24,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 
-import { TRIP_SCHEDULES, TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS } from "@/data/reservationData";
+import { TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS, type TripSchedule } from "@/data/reservationData";
 
 function availabilityBadgeVariant(count: number, threshold = 5): "default" | "secondary" | "destructive" {
   if (count > threshold) return "default";
@@ -79,6 +79,9 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   const [passengerCount, setPassengerCount] = useState(1);
   const [selectedBaseType, setSelectedBaseType] = useState<'queen' | 'twin' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tripSchedules, setTripSchedules] = useState<TripSchedule[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(true);
+  const [tripSchedulesError, setTripSchedulesError] = useState<string | null>(null);
 
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -117,10 +120,93 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
     }
   }, [currentUser, form]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrips() {
+      setIsLoadingTrips(true);
+      setTripSchedulesError(null);
+
+      const supabase = createSupabaseClient();
+      const { data, error } = await supabase
+        .from("cruise_events")
+        .select("id, name, date, destination, capacity, current_bookings");
+
+      if (cancelled) return;
+
+      if (error) {
+        setTripSchedules([]);
+        setTripSchedulesError(error.message);
+        setIsLoadingTrips(false);
+        return;
+      }
+
+      const rows = (data ?? []) as Array<{
+        id: number | bigint | string;
+        name: string;
+        date: string;
+        destination: string;
+        capacity: number;
+        current_bookings: number;
+      }>;
+
+      const mapped: TripSchedule[] = rows
+        .map((row) => {
+          const idStr = typeof row.id === "bigint" ? row.id.toString() : String(row.id);
+          const totalSlots = Number(row.capacity ?? 0);
+          const currentBookings = Number(row.current_bookings ?? 0);
+          const slotsAvailable = Math.max(0, totalSlots - currentBookings);
+
+          return {
+            id: idStr,
+            // `destination` is what we show as the "label" in the UI.
+            label: row.destination,
+            // `name` is a date range string; `date` is the start date column.
+            dateRange: row.name,
+            slotsAvailable,
+            totalSlots,
+          };
+        })
+        .sort((a, b) => {
+          const dateA = rows.find((r) => String(r.id) === a.id)?.date;
+          const dateB = rows.find((r) => String(r.id) === b.id)?.date;
+
+          const getFallbackStartDate = (dateValue: string | undefined, nameValue: string | undefined) => {
+            if (dateValue) {
+              const t = new Date(dateValue).getTime();
+              if (!Number.isNaN(t)) return t;
+            }
+            const match = nameValue?.match(/\d{4}-\d{2}-\d{2}/);
+            if (match?.[0]) {
+              const t = new Date(match[0]).getTime();
+              if (!Number.isNaN(t)) return t;
+            }
+            return 0;
+          };
+
+          const rowsA = rows.find((r) => String(r.id) === a.id);
+          const rowsB = rows.find((r) => String(r.id) === b.id);
+
+          return getFallbackStartDate(dateA, rowsA?.name) - getFallbackStartDate(dateB, rowsB?.name);
+        });
+
+      if (!cancelled) {
+        setTripSchedules(mapped);
+        setIsLoadingTrips(false);
+      }
+    }
+
+    loadTrips();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const watchBookingMethod = form.watch("bookingMethod");
   const watchTrip = form.watch("tripSchedule");
 
-  const selectedTrip = TRIP_SCHEDULES.find(t => t.id === watchTrip);
+  const selectedTrip = tripSchedules.find((t) => t.id === watchTrip);
 
   const handlePassengerCountChange = (value: string) => {
     const count = parseInt(value) || 1;
@@ -247,20 +333,29 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
                 <SelectValue placeholder="Choose a voyage date..." />
               </SelectTrigger>
               <SelectContent>
-                {TRIP_SCHEDULES.map((trip) => (
-                  <SelectItem key={trip.id} value={trip.id} disabled={trip.slotsAvailable === 0}>
-                    <div className="flex items-center gap-3 w-full">
-                      <span>{trip.label} — {trip.dateRange}</span>
-                      <Badge variant={availabilityBadgeVariant(trip.slotsAvailable)} className="ml-auto text-[10px]">
-                        {trip.slotsAvailable} slots
-                      </Badge>
-                    </div>
+                {isLoadingTrips ? (
+                  <SelectItem value="__loading__" disabled>
+                    Loading voyage dates...
                   </SelectItem>
-                ))}
+                ) : (
+                  tripSchedules.map((trip) => (
+                    <SelectItem key={trip.id} value={trip.id} disabled={trip.slotsAvailable === 0}>
+                      <div className="flex items-center gap-3 w-full">
+                        <span>{trip.label} — {trip.dateRange}</span>
+                        <Badge variant={availabilityBadgeVariant(trip.slotsAvailable)} className="ml-auto text-[10px]">
+                          {trip.slotsAvailable} slots
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {form.formState.errors.tripSchedule && (
               <p className="text-xs text-destructive mt-1">{form.formState.errors.tripSchedule.message}</p>
+            )}
+            {tripSchedulesError && !isLoadingTrips && (
+              <p className="text-xs text-destructive mt-1">{tripSchedulesError}</p>
             )}
           </div>
 
