@@ -142,11 +142,31 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   };
 
   const onSubmit = async (data: ReservationFormData) => {
-    const eventId = getEventId(data.tripSchedule);
-    if (eventId == null) {
+    const selectedTrip = TRIP_SCHEDULES.find((t) => t.id === data.tripSchedule);
+    if (!selectedTrip) {
       toast.error("Invalid trip schedule selected.");
       return;
     }
+
+    setIsSubmitting(true);
+    const supabase = createSupabaseClient();
+
+    // 1. Find the corresponding event in the database
+    const { data: events, error: eventError } = await supabase
+      .from("cruise_events")
+      .select("id")
+      .eq("name", selectedTrip.label)
+      .limit(1);
+
+    if (eventError || !events || events.length === 0) {
+      setIsSubmitting(false);
+      toast.error("Error finding this voyage in the database.", {
+        description: "Please make sure the trip schedule exists in the system."
+      });
+      return;
+    }
+
+    const eventId = events[0].id;
 
     const cabinType = cabinTypeIdToDb(data.preferredCabin);
     const passengers = data.passengers.map((p) => ({
@@ -155,8 +175,6 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       foodAllergies: p.foodAllergies || undefined,
     }));
 
-    setIsSubmitting(true);
-    const supabase = createSupabaseClient();
     const { error } = await supabase.from("reservations").insert({
       event_id: eventId,
       cabin_id: data.selectedCabinId,
