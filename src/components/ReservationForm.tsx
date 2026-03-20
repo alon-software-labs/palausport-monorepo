@@ -35,8 +35,8 @@ const reservationSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   phone: z.string().trim().min(1, "Phone number is required").max(30),
   numberOfPassengers: z.coerce.number().min(1, "At least 1 passenger").max(22, "Maximum 22 passengers"),
-  selectedCabinId: z.string().min(1, "Please select a specific cabin from the map"),
-  preferredCabin: z.string().min(1, "Please select an occupancy rate for your cabin"),
+  selectedCabinIds: z.array(z.string()).min(1, "Please select at least one cabin from the map"),
+  cabinOccupancies: z.record(z.string(), z.string().min(1, "Occupancy rate required")),
   passengers: z.array(z.object({
     fullName: z.string().trim().min(1, "Passenger name is required").max(200),
     cabinType: z.string().min(1, "Cabin type is required"),
@@ -60,7 +60,7 @@ type ReservationFormData = z.infer<typeof reservationSchema>;
 
 const ReservationForm = () => {
   const [passengerCount, setPassengerCount] = useState(1);
-  const [selectedBaseType, setSelectedBaseType] = useState<'queen' | 'twin' | null>(null);
+  const [selectedBaseType, setSelectedBaseType] = useState<'suite' | 'twin' | null>(null);
 
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -76,8 +76,8 @@ const ReservationForm = () => {
       email: "",
       phone: "",
       numberOfPassengers: 1,
-      selectedCabinId: "",
-      preferredCabin: "",
+      selectedCabinIds: [],
+      cabinOccupancies: {},
       passengers: [{ fullName: "", cabinType: "" }],
       termsAccepted: undefined as unknown as true,
       agreementName: "",
@@ -113,11 +113,38 @@ const ReservationForm = () => {
     });
   };
 
-  const handleCabinSelect = (cabinId: string, baseType: 'queen' | 'twin') => {
-    form.setValue("selectedCabinId", cabinId, { shouldValidate: true });
-    setSelectedBaseType(baseType);
-    // Reset rate specific to avoid mismatched options
-    form.setValue("preferredCabin", "", { shouldValidate: true });
+  const handleCabinToggle = (cabinIds: string[]) => {
+    form.setValue("selectedCabinIds", cabinIds, { shouldValidate: true });
+    
+    // Sync cabinOccupancies record
+    const currentOccupancies = form.getValues("cabinOccupancies");
+    const newOccupancies: Record<string, string> = {};
+    
+    cabinIds.forEach(id => {
+      // Keep existing selection if it exists
+      if (currentOccupancies[id]) {
+        newOccupancies[id] = currentOccupancies[id];
+      } else {
+        // Auto-select if only one option exists (e.g., for Suite)
+        const baseType = id.startsWith('S') ? 'suite' : 'twin';
+        const options = CABIN_TYPES.filter(c => c.id.startsWith(baseType));
+        if (options.length === 1) {
+          newOccupancies[id] = options[0].id;
+        } else {
+          newOccupancies[id] = "";
+        }
+      }
+    });
+    
+    form.setValue("cabinOccupancies", newOccupancies, { shouldValidate: true });
+
+    if (cabinIds.length > 0) {
+      const firstId = cabinIds[0];
+      const baseType = firstId.startsWith('S') ? 'suite' : 'twin';
+      setSelectedBaseType(baseType);
+    } else {
+      setSelectedBaseType(null);
+    }
   };
 
   const SectionHeader = ({ step, title, subtitle }: { step: number; title: string; subtitle: string }) => (
@@ -345,49 +372,110 @@ const ReservationForm = () => {
         {/* The New Map */}
         <div className="mb-6">
           <CabinSelectionMap
-            onSelect={handleCabinSelect}
-            selectedCabinId={form.watch("selectedCabinId")}
+            onSelect={handleCabinToggle}
+            selectedCabinIds={form.watch("selectedCabinIds")}
           />
-          {form.formState.errors.selectedCabinId && (
-            <p className="text-xs text-destructive mt-2 text-center">{form.formState.errors.selectedCabinId.message}</p>
+          
+          {/* Capacity Alert / Prompt */}
+          {(() => {
+            const selectedCount = form.watch("selectedCabinIds").length;
+            const totalCapacity = selectedCount * 2;
+            const needed = passengerCount - totalCapacity;
+            
+            if (needed > 0) {
+              return (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <UserPlus className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">More Cabins Needed</p>
+                    <p className="text-xs text-amber-700">
+                      You have {passengerCount} passengers but only {totalCapacity} slots. Please select <strong>{Math.ceil(needed / 2)}</strong> more cabin(s).
+                    </p>
+                  </div>
+                </div>
+              );
+            } else if (selectedCount > 0) {
+              return (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                    <Ship className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-green-900">Capacity Met</p>
+                    <p className="text-xs text-green-700">
+                      Selected cabins can accommodate up to {totalCapacity} passengers.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {form.formState.errors.selectedCabinIds && (
+            <p className="text-xs text-destructive mt-2 text-center">{form.formState.errors.selectedCabinIds.message}</p>
           )}
         </div>
 
-        {selectedBaseType && (
+        {form.watch("selectedCabinIds").length > 0 && (
           <div className="pt-6 border-t animate-in fade-in slide-in-from-top-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-foreground">Occupancy Rate for {form.watch("selectedCabinId")}</h3>
-              <p className="text-xs text-muted-foreground">Select how you will be occupying this cabin</p>
+            <div className="mb-6">
+              <h2 className="section-title text-base">Occupancy Rates</h2>
+              <p className="text-sm text-muted-foreground">Select how you will be occupying each of your selected cabins</p>
             </div>
-            <RadioGroup
-              onValueChange={(val) => form.setValue("preferredCabin", val)}
-              value={form.watch("preferredCabin")}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-            >
-              {CABIN_TYPES.filter(c => c.id.startsWith(selectedBaseType)).map((cabin) => {
-                const available = cabin.totalInventory - cabin.booked;
+
+            <div className="space-y-8">
+              {form.watch("selectedCabinIds").map((cabinId) => {
+                const baseType = cabinId.startsWith('S') ? 'suite' : 'twin';
+                const cabinLabel = cabinId.startsWith('S') ? 'Suite' : 'Twin';
+                
                 return (
-                  <label
-                    key={cabin.id}
-                    className={`cabin-card flex items-start gap-3 ${form.watch("preferredCabin") === cabin.id ? "selected" : ""}`}
-                  >
-                    <RadioGroupItem value={cabin.id} className="mt-0.5" disabled={available === 0} />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <p className="text-sm font-semibold text-foreground">{cabin.label}</p>
-                        <Badge variant={available > 2 ? "default" : available > 0 ? "secondary" : "destructive"} className="text-[10px] ml-2 shrink-0">
-                          {available} left
-                        </Badge>
+                  <div key={cabinId} className="space-y-3 p-4 bg-secondary/20 rounded-xl border border-border/50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold">
+                        {cabinId}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{cabin.description}</p>
+                      <h3 className="text-sm font-semibold text-foreground">Occupancy for {cabinLabel} {cabinId}</h3>
                     </div>
-                  </label>
+
+                    <RadioGroup
+                      onValueChange={(val) => {
+                        const current = form.getValues("cabinOccupancies");
+                        form.setValue("cabinOccupancies", { ...current, [cabinId]: val }, { shouldValidate: true });
+                      }}
+                      value={form.watch("cabinOccupancies")[cabinId] || ""}
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    >
+                      {CABIN_TYPES.filter(c => c.id.startsWith(baseType)).map((cabin) => {
+                        const available = cabin.totalInventory - cabin.booked;
+                        return (
+                          <label
+                            key={cabin.id}
+                            className={`cabin-card flex items-start gap-3 ${form.watch("cabinOccupancies")[cabinId] === cabin.id ? "selected" : ""}`}
+                          >
+                            <RadioGroupItem value={cabin.id} className="mt-0.5" disabled={available === 0} />
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm font-semibold text-foreground">{cabin.label}</p>
+                                <Badge variant={available > 2 ? "default" : available > 0 ? "secondary" : "destructive"} className="text-[10px] ml-2 shrink-0">
+                                  {available} left
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{cabin.description}</p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </RadioGroup>
+                    {form.formState.errors.cabinOccupancies?.[cabinId] && (
+                      <p className="text-xs text-destructive mt-1">{(form.formState.errors.cabinOccupancies[cabinId] as any).message}</p>
+                    )}
+                  </div>
                 );
               })}
-            </RadioGroup>
-            {form.formState.errors.preferredCabin && (
-              <p className="text-xs text-destructive mt-2">{form.formState.errors.preferredCabin.message}</p>
-            )}
+            </div>
           </div>
         )}
       </div>
