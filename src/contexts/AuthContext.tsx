@@ -16,8 +16,7 @@ interface AuthContextType {
   currentUser: User | null;
   userRole: AppRole | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -52,38 +51,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUser(mapUser(session?.user ?? null, session?.access_token));
+      setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(mapUser(session?.user ?? null, session?.access_token));
+      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  useEffect(() => {
-    // Mark loading complete after first session check
-    const t = setTimeout(() => setIsLoading(false), 100);
-    return () => clearTimeout(t);
-  }, [currentUser]);
-
-  const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { success: false, error: error.message };
-    setCurrentUser(mapUser(data.user, data.session?.access_token));
-    return { success: true };
-  };
-
-  const signUp = async (email: string, password: string, name?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
+  const loginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({ 
+      provider: 'google',
+      options: {
+        // Automatically injects the '/palausport-reservation-ui/' base from Vite
+        redirectTo: window.location.origin + import.meta.env.BASE_URL
+      }
     });
     if (error) return { success: false, error: error.message };
-    if (data.user) {
-      setCurrentUser(mapUser(data.user, data.session?.access_token));
-    }
+    // State is automatically updated via onAuthStateChange listener after OAuth redirect
     return { success: true };
   };
 
@@ -96,8 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     currentUser,
     userRole: currentUser?.role ?? null,
     isLoading,
-    login,
-    signUp,
+    loginWithGoogle,
     logout,
   };
 
