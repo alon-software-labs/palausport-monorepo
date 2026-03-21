@@ -35,9 +35,10 @@ const CABINS_DATA: CabinNode[] = [
 export interface CabinSelectionMapProps {
   onSelect: (cabinIds: string[]) => void;
   selectedCabinIds?: string[];
+  bookedCabinIds?: string[];
 }
 
-export const CabinSelectionMap: React.FC<CabinSelectionMapProps> = ({ onSelect, selectedCabinIds = [] }) => {
+export const CabinSelectionMap: React.FC<CabinSelectionMapProps> = ({ onSelect, selectedCabinIds = [], bookedCabinIds = [] }) => {
   const handleToggleCabin = (id: string) => {
     const isSelected = selectedCabinIds.includes(id);
     if (isSelected) {
@@ -102,14 +103,14 @@ export const CabinSelectionMap: React.FC<CabinSelectionMapProps> = ({ onSelect, 
             {/* Top Row (Port) */}
             <div className="flex h-[40%] gap-1 sm:gap-1.5 mb-1 sm:mb-2 w-[98%] mx-auto">
               <div className="flex-[3] grid grid-cols-2 gap-1 sm:gap-1.5 h-full">
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S1')!} selected={selectedCabinIds.includes('S1')} onSelect={handleToggleCabin} className="h-full shadow-sm border-amber-200/60 dark:border-amber-900/50" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S3')!} selected={selectedCabinIds.includes('S3')} onSelect={handleToggleCabin} className="h-full shadow-sm border-amber-200/60 dark:border-amber-900/50" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S1')!} selected={selectedCabinIds.includes('S1')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full shadow-sm border-amber-200/60 dark:border-amber-900/50" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S3')!} selected={selectedCabinIds.includes('S3')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full shadow-sm border-amber-200/60 dark:border-amber-900/50" />
               </div>
               <div className="flex-[4] grid grid-cols-4 gap-1 sm:gap-1.5 h-full">
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T1')!} selected={selectedCabinIds.includes('T1')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T2')!} selected={selectedCabinIds.includes('T2')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T3')!} selected={selectedCabinIds.includes('T3')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T4')!} selected={selectedCabinIds.includes('T4')} onSelect={handleToggleCabin} className="h-full" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T1')!} selected={selectedCabinIds.includes('T1')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T2')!} selected={selectedCabinIds.includes('T2')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T3')!} selected={selectedCabinIds.includes('T3')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T4')!} selected={selectedCabinIds.includes('T4')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full" />
               </div>
             </div>
 
@@ -121,14 +122,14 @@ export const CabinSelectionMap: React.FC<CabinSelectionMapProps> = ({ onSelect, 
             {/* Bottom Row (Starboard) */}
             <div className="flex h-[40%] gap-1 sm:gap-1.5 mt-1 sm:mt-2 w-[98%] mx-auto">
               <div className="flex-[2] flex items-end min-w-0">
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S2')!} selected={selectedCabinIds.includes('S2')} onSelect={handleToggleCabin} className="flex-1 w-full h-[75%] shadow-sm border-amber-200/60 dark:border-amber-900/50" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S2')!} selected={selectedCabinIds.includes('S2')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="flex-1 w-full h-[75%] shadow-sm border-amber-200/60 dark:border-amber-900/50" />
               </div>
               <div className="flex-[5] grid grid-cols-5 gap-1 sm:gap-1.5 h-full min-w-0">
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T5')!} selected={selectedCabinIds.includes('T5')} onSelect={handleToggleCabin} className="h-full min-w-0" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T6')!} selected={selectedCabinIds.includes('T6')} onSelect={handleToggleCabin} className="h-full min-w-0" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T7')!} selected={selectedCabinIds.includes('T7')} onSelect={handleToggleCabin} className="h-full min-w-0" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T8')!} selected={selectedCabinIds.includes('T8')} onSelect={handleToggleCabin} className="h-full min-w-0" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T9')!} selected={selectedCabinIds.includes('T9')} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T5')!} selected={selectedCabinIds.includes('T5')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T6')!} selected={selectedCabinIds.includes('T6')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T7')!} selected={selectedCabinIds.includes('T7')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T8')!} selected={selectedCabinIds.includes('T8')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T9')!} selected={selectedCabinIds.includes('T9')} bookedCabinIds={bookedCabinIds} onSelect={handleToggleCabin} className="h-full min-w-0" />
               </div>
             </div>
             
@@ -187,17 +188,19 @@ const Chair = ({ className }: { className: string }) => (
 const CabinBlock = ({
   cabin,
   selected,
+  bookedCabinIds = [],
   onSelect,
   className
 }: {
   cabin: CabinNode | undefined;
   selected: boolean;
+  bookedCabinIds?: string[];
   onSelect: (id: string) => void;
   className?: string;
 }) => {
   if (!cabin) return null; // Safe fallback
 
-  const isAvailable = cabin.status === 'available';
+  const isAvailable = cabin.status === 'available' && !bookedCabinIds.includes(cabin.id);
 
   return (
     <TooltipProvider delayDuration={100}>

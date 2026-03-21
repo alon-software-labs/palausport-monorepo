@@ -87,6 +87,8 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   const [passengerCount, setPassengerCount] = useState(1);
   const [selectedBaseType, setSelectedBaseType] = useState<'suite' | 'twin' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [liveEvents, setLiveEvents] = useState<any[]>([]);
+  const [bookedCabinIds, setBookedCabinIds] = useState<string[]>([]);
 
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -129,7 +131,67 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   const watchTrip = form.watch("tripSchedule");
   const watchDestination = form.watch("tripDestination");
 
-  const availableSchedules = TRIP_SCHEDULES.filter(t => t.destinationId === watchDestination);
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const supabase = createSupabaseClient();
+      const { data: eventsData, error } = await supabase.from("cruise_events").select("id, name, capacity, current_bookings");
+      
+      if (error) {
+        console.error('Error fetching cruise_events:', error);
+        return;
+      }
+
+      if (eventsData) {
+        setLiveEvents(eventsData);
+      }
+    };
+    fetchEvents();
+  }, []);
+
+  useEffect(() => {
+    const fetchBookedCabins = async () => {
+      if (!watchTrip || !liveEvents.length) {
+        setBookedCabinIds([]);
+        return;
+      }
+      
+      const selected = TRIP_SCHEDULES.find(t => t.id === watchTrip);
+      if (!selected) return;
+
+      const event = liveEvents.find(e => {
+        const dbName = (e.name || "").trim().toLowerCase();
+        const staticLabel = (selected.label || "").trim().toLowerCase();
+        return dbName === staticLabel;
+      });
+      if (!event) return;
+
+      const supabase = createSupabaseClient();
+      // Fetch securely using RPC to bypass RLS masking other users' confirmed bookings
+      const { data, error } = await supabase.rpc("get_booked_cabins", { target_event_id: event.id });
+
+      if (data && !error) {
+        const ids = data.map((r: any) => r.cabin_id);
+        setBookedCabinIds(ids);
+      }
+    };
+    fetchBookedCabins();
+  }, [watchTrip, liveEvents]);
+
+  const availableSchedules = TRIP_SCHEDULES.filter(t => t.destinationId === watchDestination).map(t => {
+    const liveEvent = liveEvents.find(e => {
+        const dbName = (e.name || "").trim().toLowerCase();
+        const staticLabel = (t.label || "").trim().toLowerCase();
+        return dbName === staticLabel;
+    });
+    if (liveEvent) {
+      return {
+        ...t,
+        slotsAvailable: Math.max(0, liveEvent.capacity - liveEvent.current_bookings),
+        totalSlots: liveEvent.capacity
+      };
+    }
+    return t;
+  });
   const selectedTrip = TRIP_SCHEDULES.find(t => t.id === watchTrip);
 
   useEffect(() => {
@@ -502,6 +564,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
           <CabinSelectionMap
             onSelect={handleCabinToggle}
             selectedCabinIds={form.watch("selectedCabinIds")}
+            bookedCabinIds={bookedCabinIds}
           />
           
           {/* Capacity Alert / Prompt */}
