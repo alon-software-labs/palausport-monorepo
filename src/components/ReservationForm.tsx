@@ -24,7 +24,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 
-import { TRIP_SCHEDULES, TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS } from "@/data/reservationData";
+import { TRIP_DESTINATIONS, TRIP_SCHEDULES, TRIP_TYPES, CABIN_TYPES, GENDER_OPTIONS, BOOKING_METHODS } from "@/data/reservationData";
 
 function availabilityBadgeVariant(count: number, threshold = 5): "default" | "secondary" | "destructive" {
   if (count > threshold) return "default";
@@ -34,8 +34,8 @@ function availabilityBadgeVariant(count: number, threshold = 5): "default" | "se
 import { CabinSelectionMap } from "./CabinSelectionMap";
 
 const reservationSchema = z.object({
+  tripDestination: z.string().min(1, "Please select a trip destination"),
   tripSchedule: z.string().min(1, "Please select a trip schedule"),
-  tripType: z.string().min(1, "Please select a trip type"),
   bookingMethod: z.string().min(1, "Please select a booking method"),
   agentCompany: z.string().optional(),
   agentContact: z.string().optional(),
@@ -83,8 +83,8 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   const form = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
     defaultValues: {
+      tripDestination: "",
       tripSchedule: "",
-      tripType: "",
       bookingMethod: "",
       agentCompany: "",
       agentContact: "",
@@ -119,8 +119,14 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
 
   const watchBookingMethod = form.watch("bookingMethod");
   const watchTrip = form.watch("tripSchedule");
+  const watchDestination = form.watch("tripDestination");
 
+  const availableSchedules = TRIP_SCHEDULES.filter(t => t.destinationId === watchDestination);
   const selectedTrip = TRIP_SCHEDULES.find(t => t.id === watchTrip);
+
+  useEffect(() => {
+    form.setValue("tripSchedule", "", { shouldValidate: false });
+  }, [watchDestination, form]);
 
   const handlePassengerCountChange = (value: string) => {
     const count = parseInt(value) || 1;
@@ -136,11 +142,31 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
   };
 
   const onSubmit = async (data: ReservationFormData) => {
-    const eventId = getEventId(data.tripSchedule);
-    if (eventId == null) {
+    const selectedTrip = TRIP_SCHEDULES.find((t) => t.id === data.tripSchedule);
+    if (!selectedTrip) {
       toast.error("Invalid trip schedule selected.");
       return;
     }
+
+    setIsSubmitting(true);
+    const supabase = createSupabaseClient();
+
+    // 1. Find the corresponding event in the database
+    const { data: events, error: eventError } = await supabase
+      .from("cruise_events")
+      .select("id")
+      .eq("name", selectedTrip.label)
+      .limit(1);
+
+    if (eventError || !events || events.length === 0) {
+      setIsSubmitting(false);
+      toast.error("Error finding this voyage in the database.", {
+        description: "Please make sure the trip schedule exists in the system."
+      });
+      return;
+    }
+
+    const eventId = events[0].id;
 
     const cabinType = cabinTypeIdToDb(data.preferredCabin);
     const passengers = data.passengers.map((p) => ({
@@ -149,8 +175,6 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       foodAllergies: p.foodAllergies || undefined,
     }));
 
-    setIsSubmitting(true);
-    const supabase = createSupabaseClient();
     const { error } = await supabase.from("reservations").insert({
       event_id: eventId,
       cabin_id: data.selectedCabinId,
@@ -236,71 +260,68 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
         </div>
       </div>
 
-      {/* STEP 2: Trip Schedule */}
+      {/* STEP 2: Trip Destination */}
       <div className="section-card">
-        <SectionHeader step={2} title="Select Your Trip Schedule" subtitle="Choose your preferred voyage date" />
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="tripSchedule">Trip Schedule *</Label>
-            <Select onValueChange={(val) => form.setValue("tripSchedule", val)} value={form.watch("tripSchedule")}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Choose a voyage date..." />
-              </SelectTrigger>
-              <SelectContent>
-                {TRIP_SCHEDULES.map((trip) => (
-                  <SelectItem key={trip.id} value={trip.id} disabled={trip.slotsAvailable === 0}>
-                    <div className="flex items-center gap-3 w-full">
-                      <span>{trip.label} — {trip.dateRange}</span>
-                      <Badge variant={availabilityBadgeVariant(trip.slotsAvailable)} className="ml-auto text-[10px]">
-                        {trip.slotsAvailable} slots
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.formState.errors.tripSchedule && (
-              <p className="text-xs text-destructive mt-1">{form.formState.errors.tripSchedule.message}</p>
-            )}
-          </div>
-
-          {selectedTrip && (
-            <div className="bg-secondary rounded-lg p-4 flex items-center gap-3">
-              <Ship className="w-5 h-5 text-primary" />
-              <div>
-                <p className="text-sm font-medium text-secondary-foreground">{selectedTrip.label} — {selectedTrip.dateRange}</p>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-available">{selectedTrip.slotsAvailable}</span> of {selectedTrip.totalSlots} slots available
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* STEP 3: Trip Type */}
-      <div className="section-card">
-        <SectionHeader step={3} title="Trip Type" subtitle="Select the itinerary package" />
+        <SectionHeader step={2} title="Trip Destination" subtitle="Where would you like to dive?" />
         <RadioGroup
-          onValueChange={(val) => form.setValue("tripType", val)}
-          value={form.watch("tripType")}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          onValueChange={(val) => form.setValue("tripDestination", val)}
+          value={watchDestination}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
-          {TRIP_TYPES.map((type) => (
+          {TRIP_DESTINATIONS.map((dest) => (
             <label
-              key={type.id}
-              className={`cabin-card flex items-start gap-3 ${form.watch("tripType") === type.id ? "selected" : ""}`}
+              key={dest.id}
+              className={`cabin-card flex items-start gap-3 ${watchDestination === dest.id ? "selected" : ""}`}
             >
-              <RadioGroupItem value={type.id} className="mt-0.5" />
+              <RadioGroupItem value={dest.id} className="mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">{type.label}</p>
-                <p className="text-xs text-muted-foreground">{type.description}</p>
+                <p className="text-sm font-semibold text-foreground">{dest.label}</p>
               </div>
             </label>
           ))}
         </RadioGroup>
-        {form.formState.errors.tripType && (
-          <p className="text-xs text-destructive mt-2">{form.formState.errors.tripType.message}</p>
+        {form.formState.errors.tripDestination && (
+          <p className="text-xs text-destructive mt-2">{form.formState.errors.tripDestination.message}</p>
+        )}
+      </div>
+
+      {/* STEP 3: Trip Schedule */}
+      <div className="section-card">
+        <SectionHeader step={3} title="Trip Schedule" subtitle="Choose your preferred voyage date based on the selected destination" />
+        {!watchDestination ? (
+          <p className="text-sm text-muted-foreground italic p-4 bg-background rounded-md border text-center">
+            Please select a trip destination first to view available schedules.
+          </p>
+        ) : availableSchedules.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic p-4 bg-background rounded-md border text-center">
+            No schedules currently available for this destination.
+          </p>
+        ) : (
+          <RadioGroup
+            onValueChange={(val) => form.setValue("tripSchedule", val)}
+            value={form.watch("tripSchedule")}
+            className="grid grid-cols-1 md:grid-cols-2 gap-3"
+          >
+            {availableSchedules.map((trip) => (
+              <label
+                key={trip.id}
+                className={`cabin-card flex items-start gap-3 ${form.watch("tripSchedule") === trip.id ? "selected" : ""} ${trip.slotsAvailable === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <RadioGroupItem value={trip.id} className="mt-0.5" disabled={trip.slotsAvailable === 0} />
+                <div className="flex-[1]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-foreground">{trip.label}</p>
+                    <Badge variant={availabilityBadgeVariant(trip.slotsAvailable)} className="text-[10px]">
+                      {trip.slotsAvailable} slots
+                    </Badge>
+                  </div>
+                </div>
+              </label>
+            ))}
+          </RadioGroup>
+        )}
+        {form.formState.errors.tripSchedule && (
+          <p className="text-xs text-destructive mt-2">{form.formState.errors.tripSchedule.message}</p>
         )}
       </div>
 
