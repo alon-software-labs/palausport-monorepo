@@ -76,9 +76,6 @@ const Index = () => {
               <Button asChild>
                 <Link to="/login">Sign in</Link>
               </Button>
-              <Button variant="outline" asChild>
-                <Link to="/signup">Sign up</Link>
-              </Button>
             </div>
           </div>
         )}
