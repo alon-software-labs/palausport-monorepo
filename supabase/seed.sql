@@ -1,0 +1,1 @@
+-- Optional seed data for local `supabase db reset`; remote `db push` does not require this file.
