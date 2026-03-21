@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -9,6 +9,7 @@ import { Calendar, MessageSquare, Ship } from "lucide-react";
 
 interface ReservationRow {
   id: number;
+  reservation_group_id: string;
   event_id: number;
   cabin_id: string;
   cabin_type: string;
@@ -19,6 +20,18 @@ interface ReservationRow {
   total_price: number;
   created_at: string;
   cruise_events: { name: string; date: string } | null;
+}
+
+/** One logical booking: multiple DB rows (cabins) share reservation_group_id */
+interface GroupedReservation {
+  chatReservationId: number;
+  cabinLabels: string;
+  status: string;
+  total_guests: number;
+  total_price: number;
+  created_at: string;
+  cruise_events: { name: string; date: string } | null;
+  event_id: number;
 }
 
 interface LastMessage {
@@ -51,7 +64,7 @@ export function MyReservations() {
     const supabase = createSupabaseClient();
     supabase
       .from("reservations")
-      .select("id, event_id, cabin_id, cabin_type, customer_name, customer_email, status, total_guests, total_price, created_at, cruise_events(name, date)")
+      .select("id, reservation_group_id, event_id, cabin_id, cabin_type, customer_name, customer_email, status, total_guests, total_price, created_at, cruise_events(name, date)")
       .eq("customer_email", currentUser.email)
       .order("created_at", { ascending: false })
       .then(({ data, error: err }) => {
@@ -88,16 +101,43 @@ export function MyReservations() {
     fetchReservations();
   }, [fetchReservations]);
 
+  const groupedReservations = useMemo((): GroupedReservation[] => {
+    const byGroup = new Map<string, ReservationRow[]>();
+    for (const r of reservations) {
+      const gid = r.reservation_group_id ?? `legacy-${r.id}`;
+      const list = byGroup.get(gid) ?? [];
+      list.push(r);
+      byGroup.set(gid, list);
+    }
+    return Array.from(byGroup.values())
+      .map((rows) => {
+        const sorted = [...rows].sort((a, b) => a.id - b.id);
+        const primary = sorted[0];
+        const cabinLabels = sorted.map((x) => x.cabin_id).join(", ");
+        return {
+          chatReservationId: primary.id,
+          cabinLabels,
+          status: primary.status,
+          total_guests: primary.total_guests,
+          total_price: primary.total_price,
+          created_at: primary.created_at,
+          cruise_events: primary.cruise_events,
+          event_id: primary.event_id,
+        };
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [reservations]);
+
   useEffect(() => {
-    const active = reservations.filter(
+    const active = groupedReservations.filter(
       (r) => r.status === "PENDING" || r.status === "CONFIRMED"
     );
     if (active.length > 0) {
-      fetchLastMessages(active.map((r) => r.id));
+      fetchLastMessages(active.map((r) => r.chatReservationId));
     } else {
       setLastMessages({});
     }
-  }, [reservations, fetchLastMessages]);
+  }, [groupedReservations, fetchLastMessages]);
 
   useEffect(() => {
     const handler = () => fetchReservations();
@@ -123,7 +163,7 @@ export function MyReservations() {
     );
   }
 
-  if (reservations.length === 0) {
+  if (groupedReservations.length === 0) {
     return (
       <div className="section-card">
         <h2 className="section-title mb-4">My Reservations</h2>
@@ -139,8 +179,8 @@ export function MyReservations() {
     <div className="section-card">
       <h2 className="section-title mb-4">My Reservations</h2>
       <div className="space-y-4">
-        {reservations.map((r) => (
-          <Card key={r.id}>
+        {groupedReservations.map((r) => (
+          <Card key={`${r.chatReservationId}-${r.event_id}`}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-medium flex items-center gap-2">
@@ -153,7 +193,7 @@ export function MyReservations() {
               </div>
               <CardDescription className="flex items-center gap-1.5 text-xs">
                 <Calendar className="w-3.5 h-3.5" />
-                {r.cruise_events?.date ? new Date(r.cruise_events.date).toLocaleDateString() : "—"} • Cabin {r.cabin_id} • {r.total_guests} guest{r.total_guests !== 1 ? "s" : ""}
+                {r.cruise_events?.date ? new Date(r.cruise_events.date).toLocaleDateString() : "—"} • Cabin{r.cabinLabels.includes(",") ? "s" : ""} {r.cabinLabels} • {r.total_guests} guest{r.total_guests !== 1 ? "s" : ""}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0 text-sm text-muted-foreground">
@@ -164,8 +204,8 @@ export function MyReservations() {
                 </span>
                 {(r.status === "PENDING" || r.status === "CONFIRMED") && (
                   <Button variant="outline" size="sm" asChild>
-                    <Link to={`/reservations/${r.id}/chat`} className="flex items-center gap-2">
-                      {lastMessages[r.id] && (
+                    <Link to={`/reservations/${r.chatReservationId}/chat`} className="flex items-center gap-2">
+                      {lastMessages[r.chatReservationId] && (
                         <span className="size-2 rounded-full bg-primary shrink-0" aria-label="New messages" />
                       )}
                       <MessageSquare className="w-4 h-4" />

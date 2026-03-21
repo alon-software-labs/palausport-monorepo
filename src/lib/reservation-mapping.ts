@@ -21,9 +21,9 @@ export const TRIP_SCHEDULE_TO_EVENT_ID: Record<string, number> = {
   "trip-305": 305, "trip-306": 306, "trip-307": 307, "trip-308": 308,
 };
 
-/** Map form cabin type ID (preferredCabin) to DB cabin_type enum */
+/** Map form cabin occupancy option id (e.g. twin-solo, suite) to DB cabin_type enum */
 export function cabinTypeIdToDb(cabinTypeId: string): "BUNK" | "QUEEN_SUITE" {
-  if (cabinTypeId.startsWith("queen")) return "QUEEN_SUITE";
+  if (cabinTypeId === "suite" || cabinTypeId.startsWith("queen")) return "QUEEN_SUITE";
   return "BUNK";
 }
 

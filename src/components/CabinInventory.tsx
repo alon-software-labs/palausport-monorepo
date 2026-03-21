@@ -27,12 +27,12 @@ const CabinInventory = () => {
 
       <div className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-1">9 Bunk Cabins</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-1">8 Twin Cabins</h3>
           <p className="text-xs text-muted-foreground">Good for 2 pax each — twin berth configuration</p>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-1">4 Queen Suites</h3>
-          <p className="text-xs text-muted-foreground">Ideal for couples or sharing — spacious queen-size bed</p>
+          <h3 className="text-sm font-semibold text-foreground mb-1">3 Suites</h3>
+          <p className="text-xs text-muted-foreground">Ideal for couples or sharing — spacious suite booked for sharing of 2 people or a couple</p>
         </div>
       </div>
 
