@@ -19,10 +19,5 @@ export function cabinTypeIdToDb(cabinTypeId: string): "BUNK" | "QUEEN_SUITE" {
 
 /** Get event_id from trip schedule ID */
 export function getEventId(tripScheduleId: string): number | null {
-  // New flow: tripScheduleId is the `cruise_events.id` (bigint) coming from Supabase.
-  const numeric = Number(tripScheduleId);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
-
-  // Backwards-compat: support the old synthetic IDs (trip-1..5)
   return TRIP_SCHEDULE_TO_EVENT_ID[tripScheduleId] ?? null;
 }

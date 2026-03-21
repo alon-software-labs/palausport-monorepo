@@ -17,6 +17,14 @@ export interface CabinType {
   priceLabel: string;
 }
 
+export const TRIP_SCHEDULES: TripSchedule[] = [
+  { id: "trip-1", label: "Voyage 1", dateRange: "March 15 – March 20, 2026", slotsAvailable: 14, totalSlots: 22 },
+  { id: "trip-2", label: "Voyage 2", dateRange: "April 5 – April 10, 2026", slotsAvailable: 8, totalSlots: 22 },
+  { id: "trip-3", label: "Voyage 3", dateRange: "April 26 – May 1, 2026", slotsAvailable: 20, totalSlots: 22 },
+  { id: "trip-4", label: "Voyage 4", dateRange: "May 17 – May 22, 2026", slotsAvailable: 22, totalSlots: 22 },
+  { id: "trip-5", label: "Voyage 5", dateRange: "June 7 – June 12, 2026", slotsAvailable: 5, totalSlots: 22 },
+];
+
 export const TRIP_TYPES = [
   { id: "regular", label: "Regular", description: "Standard full itinerary cruise" },
   { id: "transition-1", label: "Transition 1", description: "Modified itinerary with different ports" },
