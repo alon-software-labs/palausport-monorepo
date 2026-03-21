@@ -198,7 +198,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const mappedEvents = (eventsRes.data as DbCruiseEvent[]).map((row) => {
       const event = mapEvent(row);
       event.currentBookings = mappedReservations
-        .filter((r) => r.eventId === event.id)
+        .filter((r) => r.eventId === event.id && r.status === 'CONFIRMED')
         .reduce((sum, r) => sum + r.totalGuests, 0);
       return event;
     });
