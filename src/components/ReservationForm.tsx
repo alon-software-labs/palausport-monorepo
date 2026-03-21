@@ -391,7 +391,7 @@ const ReservationForm = () => {
                   <div>
                     <p className="text-sm font-semibold text-amber-900">More Cabins Needed</p>
                     <p className="text-xs text-amber-700">
-                      You have {passengerCount} passengers but only {totalCapacity} slots. Please select <strong>{Math.ceil(needed / 2)}</strong> more cabin(s).
+                      You have {passengerCount} passenger{passengerCount > 1 ? 's' : ''} but only {totalCapacity} slots. Please select <strong>{Math.ceil(needed / 2)}</strong> more cabin(s).
                     </p>
                   </div>
                 </div>

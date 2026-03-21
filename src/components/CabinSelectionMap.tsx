@@ -16,19 +16,20 @@ export interface CabinNode {
   label: string;
 }
 
-// Fixed mock data to simulate inventory state matching 2 suites and 8 twins
+// Fixed mock data to simulate inventory state matching 3 suites and 9 twins
 const CABINS_DATA: CabinNode[] = [
   { id: 'S1', baseType: 'suite', status: 'available', label: 'Suite 1' },
   { id: 'S2', baseType: 'suite', status: 'available', label: 'Suite 2' },
   { id: 'S3', baseType: 'suite', status: 'available', label: 'Suite 3' },
   { id: 'T1', baseType: 'twin', status: 'available', label: 'Twin Cabin 1' },
   { id: 'T2', baseType: 'twin', status: 'available', label: 'Twin Cabin 2' },
-  { id: 'T3', baseType: 'twin', status: 'booked', label: 'Twin Cabin 3' },
+  { id: 'T3', baseType: 'twin', status: 'available', label: 'Twin Cabin 3' },
   { id: 'T4', baseType: 'twin', status: 'available', label: 'Twin Cabin 4' },
-  { id: 'T5', baseType: 'twin', status: 'booked', label: 'Twin Cabin 5' },
+  { id: 'T5', baseType: 'twin', status: 'available', label: 'Twin Cabin 5' },
   { id: 'T6', baseType: 'twin', status: 'available', label: 'Twin Cabin 6' },
   { id: 'T7', baseType: 'twin', status: 'available', label: 'Twin Cabin 7' },
   { id: 'T8', baseType: 'twin', status: 'available', label: 'Twin Cabin 8' },
+  { id: 'T9', baseType: 'twin', status: 'available', label: 'Twin Cabin 9' },
 ];
 
 export interface CabinSelectionMapProps {
@@ -119,14 +120,15 @@ export const CabinSelectionMap: React.FC<CabinSelectionMapProps> = ({ onSelect, 
 
             {/* Bottom Row (Starboard) */}
             <div className="flex h-[40%] gap-1 sm:gap-1.5 mt-1 sm:mt-2 w-[98%] mx-auto">
-              <div className="flex-[3] flex items-end">
+              <div className="flex-[2] flex items-end min-w-0">
                   <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'S2')!} selected={selectedCabinIds.includes('S2')} onSelect={handleToggleCabin} className="flex-1 w-full h-[75%] shadow-sm border-amber-200/60 dark:border-amber-900/50" />
               </div>
-              <div className="flex-[4] grid grid-cols-4 gap-1 sm:gap-1.5 h-full">
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T5')!} selected={selectedCabinIds.includes('T5')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T6')!} selected={selectedCabinIds.includes('T6')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T7')!} selected={selectedCabinIds.includes('T7')} onSelect={handleToggleCabin} className="h-full" />
-                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T8')!} selected={selectedCabinIds.includes('T8')} onSelect={handleToggleCabin} className="h-full" />
+              <div className="flex-[5] grid grid-cols-5 gap-1 sm:gap-1.5 h-full min-w-0">
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T5')!} selected={selectedCabinIds.includes('T5')} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T6')!} selected={selectedCabinIds.includes('T6')} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T7')!} selected={selectedCabinIds.includes('T7')} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T8')!} selected={selectedCabinIds.includes('T8')} onSelect={handleToggleCabin} className="h-full min-w-0" />
+                  <CabinBlock cabin={CABINS_DATA.find(c => c.id === 'T9')!} selected={selectedCabinIds.includes('T9')} onSelect={handleToggleCabin} className="h-full min-w-0" />
               </div>
             </div>
             
