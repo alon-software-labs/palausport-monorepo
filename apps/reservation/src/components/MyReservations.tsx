@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createSupabaseJsClient } from "@repo/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,7 +61,7 @@ export function MyReservations() {
     }
     setLoading(true);
     setError(null);
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
     supabase
       .from("reservations")
       .select("id, reservation_group_id, event_id, cabin_id, cabin_type, customer_name, customer_email, status, total_guests, total_price, created_at, cruise_events(name, date)")
@@ -80,7 +80,7 @@ export function MyReservations() {
   const fetchLastMessages = useCallback(
     (reservationIds: number[]) => {
       if (reservationIds.length === 0) return;
-      const supabase = createSupabaseClient();
+      const supabase = createSupabaseJsClient();
       supabase
         .from("chat_messages")
         .select("reservation_id, content, created_at")

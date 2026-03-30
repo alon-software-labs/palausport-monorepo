@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createSupabaseJsClient } from "@repo/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export default function ReservationChat() {
 
   const fetchReservation = useCallback(async () => {
     if (!id || !currentUser?.email) return;
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
     const { data, error: err } = await supabase
       .from("reservations")
       .select("id, event_id, cabin_id, customer_email, status, cruise_events(name, date)")
@@ -89,7 +89,7 @@ export default function ReservationChat() {
   }, [id, currentUser?.email]);
 
   const fetchMessages = useCallback(async (reservationId: number) => {
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
     const { data, error: fetchError } = await supabase
       .from("chat_messages")
       .select("*")
@@ -111,7 +111,7 @@ export default function ReservationChat() {
     if (!reservation || !id) return;
     fetchMessages(parseInt(id, 10));
 
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
     const channel = supabase
       .channel(`chat-${id}`)
       .on(
@@ -142,7 +142,7 @@ export default function ReservationChat() {
     const content = inputValue.trim();
     const senderName = currentUser.name || currentUser.email.split("@")[0];
     setInputValue("");
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
     const { data: newMsg, error: err } = await supabase
       .from("chat_messages")
       .insert({

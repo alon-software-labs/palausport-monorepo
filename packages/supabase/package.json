@@ -1,0 +1,36 @@
+{
+  "name": "@repo/supabase",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./next": "./src/next/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "sup:link": "supabase link",
+    "sup:list": "supabase migration list --linked",
+    "sup:fetch": "supabase migration fetch --linked",
+    "sup:pull": "supabase db pull --linked",
+    "sup:sync": "supabase migration fetch --linked && supabase db pull --linked",
+    "sup:push": "supabase db push"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.98.0"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "next": "16.1.6",
+    "supabase": "^2.84.5",
+    "typescript": "5.9.2"
+  }
+}

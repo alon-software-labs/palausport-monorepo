@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createSupabaseJsClient } from "@repo/supabase";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export type AppRole = "client" | "employee";
@@ -46,7 +46,7 @@ function mapUser(sbUser: SupabaseUser | null, accessToken?: string): User | null
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [supabase] = useState(() => createSupabaseClient());
+  const [supabase] = useState(() => createSupabaseJsClient());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -66,9 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({ 
       provider: 'google',
       options: {
-        // Automatically injects the '/palausport-reservation-ui/' base from Vite
-        redirectTo: window.location.origin + import.meta.env.BASE_URL
-      }
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+      },
     });
     if (error) return { success: false, error: error.message };
     // State is automatically updated via onAuthStateChange listener after OAuth redirect

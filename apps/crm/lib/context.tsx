@@ -12,7 +12,7 @@ import {
   Passenger,
   ReservationStatus,
 } from './types';
-import { createClient } from '@/lib/supabase/client';
+import { createNextBrowserSupabaseClient } from '@repo/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export type AppRole = 'client' | 'employee';
@@ -170,7 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     setError(null);
 
     const [eventsRes, reservationsRes, invoicesRes, userRolesRes] = await Promise.all([
@@ -277,7 +277,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Supabase auth: subscribe to changes (mirrors palausport-reservation-ui AuthContext)
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUser(mapSupabaseUser(session?.user ?? null));
       setUserRole(getUserRoleFromToken(session?.access_token) ?? null);
@@ -315,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUser, fetchData]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       return { success: false, error: error.message };
@@ -326,7 +326,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, name?: string): Promise<{ success: boolean; error?: string }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -343,14 +343,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     await supabase.auth.signOut();
     setCurrentUser(null);
     setUserRole(null);
   };
 
   const addReservation = async (reservation: Omit<Reservation, 'id'> & { id?: string }): Promise<{ success: boolean; error?: string }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const eventId = parseInt(reservation.eventId, 10);
     if (isNaN(eventId)) {
       return { success: false, error: 'Invalid event ID' };
@@ -377,7 +377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const updateReservation = async (reservation: Reservation): Promise<{ success: boolean; error?: string }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const id = parseInt(reservation.id, 10);
     if (isNaN(id)) return { success: false, error: 'Invalid reservation ID' };
 
@@ -408,7 +408,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteReservation = async (id: string): Promise<{ success: boolean; error?: string }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const numId = parseInt(id, 10);
     if (isNaN(numId)) return { success: false, error: 'Invalid reservation ID' };
 
@@ -422,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const reservation = reservations.find(r => r.id === reservationId);
     if (!reservation) return null;
 
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const resId = parseInt(reservationId, 10);
     if (isNaN(resId)) return null;
 
@@ -476,7 +476,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sortDesc: boolean;
     search: string;
   }): Promise<{ data: Client[]; count: number }> => {
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     let query = supabase
       .from('client_stats')
       .select('*', { count: 'exact' });
