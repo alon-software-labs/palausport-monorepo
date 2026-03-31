@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@repo/supabase"],
-  output: 'export',
   typescript: {
     ignoreBuildErrors: true,
   },
