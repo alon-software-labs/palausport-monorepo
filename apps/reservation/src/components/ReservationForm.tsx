@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Ship, UserPlus, FileText, PenLine, ChevronDown } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createSupabaseJsClient } from "@repo/supabase";
 import { cabinTypeIdToDb } from "@/lib/reservation-mapping";
 
 import { Button } from "@/components/ui/button";
@@ -133,7 +133,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const supabase = createSupabaseClient();
+      const supabase = createSupabaseJsClient();
       const { data: eventsData, error } = await supabase.from("cruise_events").select("id, name, capacity, current_bookings");
       
       if (error) {
@@ -165,7 +165,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       });
       if (!event) return;
 
-      const supabase = createSupabaseClient();
+      const supabase = createSupabaseJsClient();
       // Fetch securely using RPC to bypass RLS masking other users' confirmed bookings
       const { data, error } = await supabase.rpc("get_booked_cabins", { target_event_id: event.id });
 
@@ -219,7 +219,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
     }
 
     setIsSubmitting(true);
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseJsClient();
 
     // 1. Find the corresponding event in the database
     const { data: events, error: eventError } = await supabase

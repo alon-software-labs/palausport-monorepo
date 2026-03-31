@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '@/lib/context';
-import { createClient } from '@/lib/supabase/client';
+import { createNextBrowserSupabaseClient } from '@repo/supabase';
 import { Reservation, ReservationStatus } from '@/lib/types';
 import { ReservationModal } from '@/components/reservation-modal';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -94,7 +94,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (filteredReservations.length === 0 || !currentUser?.id) return;
     let discarded = false;
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const ids = filteredReservations.map((r) => parseInt(r.id, 10));
 
     Promise.all([
@@ -132,7 +132,7 @@ export default function ChatPage() {
     if (!selectedReservation) return;
     const reservationId = selectedReservation.id;
     let discarded = false;
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
 
     supabase
       .from('chat_messages')
@@ -201,7 +201,7 @@ export default function ChatPage() {
   const handleSend = async () => {
     if (!selectedReservation || !currentUser?.id || !inputValue.trim()) return;
     setIsSending(true);
-    const supabase = createClient();
+    const supabase = createNextBrowserSupabaseClient();
     const { error } = await supabase.from('chat_messages').insert({
       reservation_id: parseInt(selectedReservation.id, 10),
       sender_id: currentUser.id,

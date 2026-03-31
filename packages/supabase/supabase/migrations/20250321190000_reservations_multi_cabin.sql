@@ -10,14 +10,12 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
 DO $$
 BEGIN
   CREATE TYPE public.reservation_status AS ENUM ('PENDING', 'CONFIRMED', 'CANCELLED');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
 -- Base table (new projects)
 CREATE TABLE IF NOT EXISTS public.reservations (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -37,19 +35,15 @@ CREATE TABLE IF NOT EXISTS public.reservations (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT reservations_pkey PRIMARY KEY (id)
 );
-
 -- Upgrade path: existing deployments that already had reservations without newer columns
 ALTER TABLE public.reservations
   ADD COLUMN IF NOT EXISTS reservation_group_id uuid DEFAULT gen_random_uuid();
-
 UPDATE public.reservations
 SET reservation_group_id = gen_random_uuid()
 WHERE reservation_group_id IS NULL;
-
 ALTER TABLE public.reservations
   ALTER COLUMN reservation_group_id SET NOT NULL,
   ALTER COLUMN reservation_group_id SET DEFAULT gen_random_uuid();
-
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS event_id bigint;
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS cabin_id text;
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS cabin_type public.cabin_type;
@@ -63,7 +57,6 @@ ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS total_price numeric(10,
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS notes text;
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS invoice_generated boolean NOT NULL DEFAULT false;
 ALTER TABLE public.reservations ADD COLUMN IF NOT EXISTS created_at timestamp with time zone NOT NULL DEFAULT now();
-
 -- Foreign key to cruise_events
 DO $fk$
 BEGIN
@@ -73,11 +66,9 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $fk$;
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS reservations_event_id_idx ON public.reservations USING btree (event_id);
 CREATE INDEX IF NOT EXISTS reservations_reservation_group_id_idx ON public.reservations USING btree (reservation_group_id);
-
 -- One line per cabin within a booking
 CREATE UNIQUE INDEX IF NOT EXISTS reservations_group_cabin_uidx
   ON public.reservations (reservation_group_id, cabin_id);

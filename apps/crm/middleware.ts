@@ -1,5 +1,14 @@
 import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { createSupabaseSessionMiddleware } from '@repo/supabase/next';
+
+const updateSession = createSupabaseSessionMiddleware({
+  protectedPrefixes: ['/dashboard', '/reservations', '/invoices'],
+  authPages: ['/login', '/signup'],
+  loginPath: '/login',
+  accessDeniedPath: '/access-denied',
+  employeeHomePath: '/dashboard',
+  requiredRoleForProtectedRoutes: 'employee',
+});
 
 export async function middleware(request: NextRequest) {
   return await updateSession(request);
@@ -7,12 +16,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico, icons, images
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
