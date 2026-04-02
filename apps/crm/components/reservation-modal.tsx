@@ -149,6 +149,20 @@ export function ReservationModal({
                           {passenger.foodAllergies || 'None'}
                         </div>
                       </div>
+                      <div className="space-y-1 col-span-2">
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Divers Alert Network</span>
+                        {passenger.danId ? (
+                          <div className="text-xs font-medium text-emerald-600">
+                            DAN ID: <span className="font-mono font-bold">{passenger.danId}</span>
+                          </div>
+                        ) : passenger.buyDanInsurance ? (
+                          <div className="text-xs font-medium text-amber-600">
+                            Purchasing DAN Insurance via Palau Sport
+                          </div>
+                        ) : (
+                          <div className="text-xs font-medium text-muted-foreground">—</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
