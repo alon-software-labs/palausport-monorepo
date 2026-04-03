@@ -13,16 +13,16 @@ export function AuthenticatedLayout({
     return (
         <ProtectedRoute>
             <SidebarProvider>
-                <div className="flex min-h-screen w-full">
+                <div className="flex min-h-screen w-full max-w-full">
                     <AppSidebar />
-                    <SidebarInset>
-                        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 bg-background/95 backdrop-blur-sm sticky top-0 z-10 w-full">
+                    <SidebarInset className="w-full max-w-full">
+                        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]:h-12 bg-background/95 backdrop-blur-sm sticky top-0 z-20 w-full">
                             <div className="flex items-center gap-2">
                                 <SidebarTrigger className="-ml-1" />
                             </div>
                             <Navbar />
                         </header>
-                        <main className="p-4 md:p-8 w-full">
+                        <main className="p-[clamp(1rem,5vw,2rem)] w-full max-w-full">
                             {children}
                         </main>
                     </SidebarInset>

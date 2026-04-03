@@ -221,7 +221,7 @@ export default function ClientsPage() {
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-[clamp(1rem,3vh,2rem)] animate-in fade-in duration-300">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
@@ -229,7 +229,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)]">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -340,7 +340,7 @@ export default function ClientsPage() {
             />
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -351,9 +351,9 @@ export default function ClientsPage() {
                           {header.isPlaceholder
                             ? null
                             : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
                         </TableHead>
                       )
                     })}
