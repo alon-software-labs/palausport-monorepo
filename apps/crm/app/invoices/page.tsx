@@ -98,13 +98,13 @@ export default function InvoicesPage() {
   const totalGuests = filteredInvoices.reduce((sum, i) => sum + i.totalGuests, 0);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-[clamp(1.5rem,5vh,2.5rem)] animate-in fade-in duration-300">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Invoice History</h1>
         <p className="text-muted-foreground mt-0.5">View and manage all generated invoices</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)]">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
@@ -136,7 +136,7 @@ export default function InvoicesPage() {
           <CardTitle className="text-base">Search & Filter</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-[clamp(1rem,3vw,1.5rem)]">
             <div className="space-y-2">
               <Label htmlFor="search">Search by customer, email, or invoice number</Label>
               <div className="relative">
@@ -184,7 +184,7 @@ export default function InvoicesPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

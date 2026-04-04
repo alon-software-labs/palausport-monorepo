@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ChatMessage {
   id: number;
@@ -234,8 +235,238 @@ export default function ChatPage() {
     }
   };
 
+  const isMobile = useIsMobile();
+  const isTablet = isMobile; // Unified 1024px breakpoint
+
+  const chatList = (
+    <div className="flex flex-col h-full min-h-0 p-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {FILTER_STATUSES.map((status) => (
+          <Button
+            key={status}
+            variant={activeFilters.includes(status) ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => toggleFilter(status)}
+            className="rounded-full h-8 text-[clamp(0.65rem,1.2vw,0.75rem)] font-medium px-3 uppercase tracking-wider whitespace-nowrap min-w-max"
+          >
+            {status.replace('_', ' ')}
+          </Button>
+        ))}
+      </div>
+      <ScrollArea className="flex-1 min-h-0 pr-2">
+        <div className="space-y-1">
+          {sortedReservations.map((r) => {
+            const event = getEvent(r.eventId);
+            const isSelected = selectedReservation?.id === r.id;
+            const lastMsg = lastMessages[r.id];
+            const readAt = threadReads[r.id];
+            const isUnread =
+              lastMsg &&
+              (!readAt || new Date(lastMsg.created_at) > new Date(readAt));
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setSelectedReservation(r)}
+                className={`w-full text-left p-3 rounded-lg transition-colors ${isSelected
+                  ? 'bg-primary text-primary-foreground'
+                  : isUnread
+                    ? 'hover:bg-muted'
+                    : 'opacity-70 hover:opacity-90 hover:bg-muted/50'
+                  }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`shrink-0 size-2 rounded-full ${isUnread
+                      ? isSelected
+                        ? 'bg-primary-foreground'
+                        : 'bg-primary'
+                      : 'invisible'
+                      }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium truncate text-sm min-w-0">
+                        {r.customerName}
+                        <span className="max-[900px]:hidden"> • {event?.name}</span>
+                        <span className="opacity-70"> • Cabin {r.cabinId}</span>
+                      </p>
+                      <span
+                        className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${r.status === 'PENDING'
+                          ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                          : r.status === 'CONFIRMED'
+                            ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                            : r.status === 'COMPLETED'
+                              ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                              : 'bg-red-500/10 text-red-500 border-red-500/20'
+                          }`}
+                      >
+                        {r.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    {lastMsg ? (
+                      <div
+                        className={`flex items-center justify-between gap-2 mt-2 text-sm ${isSelected ? 'opacity-90' : 'text-muted-foreground'
+                          }`}
+                      >
+                        <span className="truncate min-w-0 max-[900px]:text-[13px]">{lastMsg.content}</span>
+                        <span className="shrink-0 whitespace-nowrap opacity-60">
+                          {new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ) : (
+                      <p
+                        className={`text-sm mt-2 ${isSelected ? 'opacity-70' : 'text-muted-foreground'
+                          }`}
+                      >
+                        No messages yet
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  const chatPane = (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/5">
+      {selectedReservation ? (
+        <>
+          <div className="p-4 border-b shrink-0 flex flex-wrap items-start justify-between bg-background/50 backdrop-blur-sm gap-4">
+            <div className="flex flex-wrap items-center gap-4 min-w-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold text-lg">{selectedReservation.customerName} • {getEvent(selectedReservation.eventId)?.destination} </h2>
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-xs font-mono font-bold tracking-wider">
+                    REF: {selectedReservation.id.slice(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {getEvent(selectedReservation.eventId)?.name} • Cabin{' '}
+                  {selectedReservation.cabinId}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[10px] uppercase font-bold tracking-wider shrink-0 cursor-pointer"
+                onClick={() => setIsDetailsModalOpen(true)}
+              >
+                View Details
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              {userRole === 'employee' ? (
+                <>
+                  <div className="text-right mr-2 hidden sm:block">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</p>
+                    <p className="text-sm font-medium">{selectedReservation.status.replace('_', ' ')}</p>
+                  </div>
+                  <Select
+                    value={selectedReservation.status}
+                    onValueChange={(value) => handleStatusUpdate(value as ReservationStatus)}
+                    disabled={isUpdatingStatus}
+                  >
+                    <SelectTrigger className="w-[140px] h-9">
+                      {isUpdatingStatus ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <SelectValue placeholder="Change Status" />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="CONFIRMED">Confirmed</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <div className="text-right max-[900px]:hidden">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</p>
+                  <p className="text-sm font-medium">{selectedReservation.status.replace('_', ' ')}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <ScrollArea className="flex-1 min-h-0 p-4 pt-6">
+            <div className="space-y-4 pb-2">
+              <div className="flex justify-center mb-6">
+                <div className="bg-muted/30 border rounded-xl p-4 max-w-[clamp(18rem,80%,32rem)] w-full shadow-sm">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 text-center opacity-70">Booking Context</p>
+                  <div className="grid grid-cols-2 max-[900px]:grid-cols-1 gap-y-2 gap-x-4 text-[13px]">
+                    <div className="text-muted-foreground">Reference</div>
+                    <div className="font-mono font-medium">{selectedReservation.id.slice(0, 8).toUpperCase()}</div>
+                    <div className="text-muted-foreground">Destination</div>
+                    <div className="font-medium">{getEvent(selectedReservation.eventId)?.destination || 'Palau Route'}</div>
+                    <div className="text-muted-foreground">Departure</div>
+                    <div className="font-medium">{getEvent(selectedReservation.eventId) ? new Date(getEvent(selectedReservation.eventId)!.date).toLocaleDateString() : 'TBD'}</div>
+                    <div className="text-muted-foreground">Cabin</div>
+                    <div className="font-medium">{selectedReservation.cabinType.replace('_', ' ')} (Unit {selectedReservation.cabinId})</div>
+                    <div className="text-muted-foreground">Guests</div>
+                    <div className="font-medium">{selectedReservation.totalGuests} Pax / {selectedReservation.passengers?.length || 0} Listed</div>
+                  </div>
+                </div>
+              </div>
+
+              {messages.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  You have no messages yet. Chat securely with support here.
+                </p>
+              ) : (
+                messages.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`flex ${m.sender_role === 'employee' ? 'justify-end' : 'justify-start'
+                      }`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${m.sender_role === 'employee'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/80 backdrop-blur-sm'
+                        }`}
+                    >
+                      <div className="flex flex-row items-baseline justify-between gap-4">
+                        <p className="text-base flex-1 min-w-0">{m.content}</p>
+                        <span className="text-xs opacity-70 shrink-0 whitespace-nowrap">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} className="h-1" />
+            </div>
+          </ScrollArea>
+          <div className="p-4 border-t flex gap-2 shrink-0 bg-background">
+            <Input
+              placeholder="Type your message here..."
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            />
+            <Button onClick={handleSend} disabled={isSending || !inputValue.trim()}>
+              {isSending ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+          <MessageSquare className="size-16 mb-4 opacity-50" />
+          <p>Select a reservation to view and reply to messages</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] min-h-0 overflow-hidden animate-in fade-in duration-300">
+    <div className="flex flex-col h-[calc(100svh-8rem)] w-full max-w-full min-h-0 overflow-hidden animate-in fade-in duration-300 space-y-4">
       <div className="shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight">Chat Support</h1>
         <p className="text-muted-foreground mt-0.5">
@@ -243,238 +474,29 @@ export default function ChatPage() {
         </p>
       </div>
 
-      <ResizablePanelGroup
-        direction="horizontal"
-        className="flex-1 min-h-0 rounded-lg border mt-4"
-      >
-        <ResizablePanel defaultSize={35} minSize={20}>
-          <div className="flex flex-col h-full min-h-0 p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              {FILTER_STATUSES.map((status) => (
-                <Button
-                  key={status}
-                  variant={activeFilters.includes(status) ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => toggleFilter(status)}
-                  className="rounded-full h-8 text-xs font-medium px-3 uppercase tracking-wider"
-                >
-                  {status.replace('_', ' ')}
-                </Button>
-              ))}
-            </div>
-            <ScrollArea className="flex-1 min-h-0 pr-2">
-              <div className="space-y-1">
-                {sortedReservations.map((r) => {
-                  const event = getEvent(r.eventId);
-                  const isSelected = selectedReservation?.id === r.id;
-                  const lastMsg = lastMessages[r.id];
-                  const readAt = threadReads[r.id];
-                  const isUnread =
-                    lastMsg &&
-                    (!readAt || new Date(lastMsg.created_at) > new Date(readAt));
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => setSelectedReservation(r)}
-                      className={`w-full text-left p-3 rounded-lg transition-colors ${isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : isUnread
-                          ? 'hover:bg-muted'
-                          : 'opacity-70 hover:opacity-90 hover:bg-muted/50'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`shrink-0 size-2 rounded-full ${isUnread
-                            ? isSelected
-                              ? 'bg-primary-foreground'
-                              : 'bg-primary'
-                            : 'invisible'
-                            }`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-medium truncate text-sm min-w-0">
-                              {r.customerName} • {event?.name} • Cabin{' '}
-                              {r.cabinId}
-                            </p>
-                            <span
-                              className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${r.status === 'PENDING'
-                                ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                                : r.status === 'CONFIRMED'
-                                  ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                                  : r.status === 'COMPLETED'
-                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
-                                }`}
-                            >
-                              {r.status.replace('_', ' ')}
-                            </span>
-                          </div>
-                          {lastMsg ? (
-                            <div
-                              className={`flex items-center justify-between gap-2 mt-2 text-sm ${isSelected ? 'opacity-90' : 'text-muted-foreground'
-                                }`}
-                            >
-                              <span className="truncate min-w-0">{lastMsg.content}</span>
-                              <span className="shrink-0 whitespace-nowrap">
-                                {new Date(lastMsg.created_at).toLocaleString()}
-                              </span>
-                            </div>
-                          ) : (
-                            <p
-                              className={`text-sm mt-2 ${isSelected ? 'opacity-70' : 'text-muted-foreground'
-                                }`}
-                            >
-                              No messages yet
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+      {isTablet ? (
+        <div className="flex flex-1 min-h-0 rounded-lg border mt-4 overflow-hidden shadow-sm bg-background">
+          <div className="w-[clamp(280px,35%,350px)] border-r bg-muted/10">
+            {chatList}
           </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={65} minSize={40}>
-          <div className="flex flex-col h-full min-h-0 overflow-hidden">
-            {selectedReservation ? (
-              <>
-                <div className="p-4 border-b shrink-0 flex items-start justify-between bg-muted/10">
-                  <div className="flex items-center gap-4">
-                    <div>
-                    <div className="flex items-center gap-2">
-                        <h2 className="font-semibold text-lg">{selectedReservation.customerName} • {getEvent(selectedReservation.eventId)?.destination} </h2>
-                      <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-xs font-mono font-bold tracking-wider">
-                        REF: {selectedReservation.id.slice(0, 8).toUpperCase()}
-                      </span>
-                    </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {getEvent(selectedReservation.eventId)?.name} • Cabin{' '}
-                        {selectedReservation.cabinId}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[10px] uppercase font-bold tracking-wider shrink-0 cursor-pointer"
-                      onClick={() => setIsDetailsModalOpen(true)}
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {userRole === 'employee' ? (
-                      <>
-                        <div className="text-right mr-2 hidden sm:block">
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</p>
-                          <p className="text-sm font-medium">{selectedReservation.status.replace('_', ' ')}</p>
-                        </div>
-                        <Select
-                          value={selectedReservation.status}
-                          onValueChange={(value) => handleStatusUpdate(value as ReservationStatus)}
-                          disabled={isUpdatingStatus}
-                        >
-                          <SelectTrigger className="w-[140px] h-9">
-                            {isUpdatingStatus ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <SelectValue placeholder="Change Status" />
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="PENDING">Pending</SelectItem>
-                            <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                            <SelectItem value="COMPLETED">Completed</SelectItem>
-                            <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </>
-                    ) : (
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Status</p>
-                        <p className="text-sm font-medium">{selectedReservation.status.replace('_', ' ')}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <ScrollArea className="flex-1 min-h-0 p-4 pt-6">
-                  <div className="space-y-4 pb-2">
-                    
-                    {/* Automatic Booking Context Message */}
-                    <div className="flex justify-center mb-8">
-                      <div className="bg-muted/50 border rounded-xl p-4 max-w-sm w-full shadow-sm">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 text-center">Booking Context</p>
-                        <div className="grid grid-cols-2 gap-y-2.5 text-sm">
-                          <div className="text-muted-foreground">Reference</div>
-                          <div className="font-mono font-medium">{selectedReservation.id.slice(0, 8).toUpperCase()}</div>
-                          <div className="text-muted-foreground">Destination</div>
-                          <div className="font-medium">{getEvent(selectedReservation.eventId)?.destination || 'Palau Route'}</div>
-                          <div className="text-muted-foreground">Departure</div>
-                          <div className="font-medium">{getEvent(selectedReservation.eventId) ? new Date(getEvent(selectedReservation.eventId)!.date).toLocaleDateString() : 'TBD'}</div>
-                          <div className="text-muted-foreground">Cabin</div>
-                          <div className="font-medium">{selectedReservation.cabinType.replace('_', ' ')} (Unit {selectedReservation.cabinId})</div>
-                          <div className="text-muted-foreground">Guests</div>
-                          <div className="font-medium">{selectedReservation.totalGuests} Pax / {selectedReservation.passengers?.length || 0} Listed</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {messages.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        You have no messages yet. Chat securely with support here.
-                      </p>
-                    ) : (
-                      messages.map((m) => (
-                        <div
-                          key={m.id}
-                          className={`flex ${m.sender_role === 'employee' ? 'justify-end' : 'justify-start'
-                            }`}
-                        >
-                          <div
-                            className={`max-w-[80%] rounded-lg px-4 py-3 ${m.sender_role === 'employee'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted'
-                              }`}
-                          >
-                            <div className="flex flex-row items-baseline justify-between gap-4">
-                              <p className="text-base flex-1 min-w-0">{m.content}</p>
-                              <span className="text-xs opacity-70 shrink-0 whitespace-nowrap">
-                                {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    <div ref={messagesEndRef} className="h-1" />
-                  </div>
-                </ScrollArea>
-                <div className="p-4 border-t flex gap-2 shrink-0 bg-background">
-                  <Input
-                    placeholder="Type your message here..."
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  />
-                  <Button onClick={handleSend} disabled={isSending || !inputValue.trim()}>
-                    {isSending ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-                <MessageSquare className="size-16 mb-4 opacity-50" />
-                <p>Select a reservation to view and reply to messages</p>
-              </div>
-            )}
+          <div className="flex-1">
+            {chatPane}
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+      ) : (
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="flex-1 min-h-0 rounded-lg border mt-4"
+        >
+          <ResizablePanel defaultSize={30} minSize={20}>
+            {chatList}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={70} minSize={40}>
+            {chatPane}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
 
       {selectedReservation && (
         <ReservationModal

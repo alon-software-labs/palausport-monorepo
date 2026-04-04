@@ -33,7 +33,7 @@ export default function DashboardPage() {
           <div className="h-9 w-48 bg-muted rounded-md mb-2" />
           <div className="h-5 w-64 bg-muted/70 rounded-md" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,3vw,1.5rem)]">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-28 bg-muted/50 rounded-xl animate-pulse" />
           ))}
@@ -53,13 +53,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="space-y-[clamp(1.5rem,5vh,2.5rem)] animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-0.5">Overview of reservations and capacity</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,3vw,1.5rem)]">
         <StatsCard
           title="Total Events"
           value={events.length}
@@ -87,7 +87,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-2 gap-[clamp(1rem,3vw,1.5rem)]">
         <Card className="group transition-all hover:shadow-md hover:border-primary/20">
           <CardHeader>
             <CardTitle className="text-base">Manage Reservations</CardTitle>
@@ -127,28 +127,30 @@ export default function DashboardPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Guests</TableHead>
-                  <TableHead className="text-right font-mono">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentReservations.map((res) => (
-                  <TableRow key={res.id}>
-                    <TableCell className="font-medium">{res.customerName}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {res.totalGuests} guest{res.totalGuests !== 1 ? 's' : ''}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-medium tabular-nums">
-                      ${res.totalPrice.toFixed(2)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Guests</TableHead>
+                    <TableHead className="text-right font-mono">Amount</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recentReservations.map((res) => (
+                    <TableRow key={res.id}>
+                      <TableCell className="font-medium">{res.customerName}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {res.totalGuests} guest{res.totalGuests !== 1 ? 's' : ''}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-medium tabular-nums">
+                        ${res.totalPrice.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
