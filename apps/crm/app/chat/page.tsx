@@ -9,7 +9,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { MessageSquare, Loader2, Paperclip, X, ImageIcon } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -28,11 +28,13 @@ interface ChatMessage {
   sender_name: string;
   content: string;
   created_at: string;
+  image_urls?: string[];
 }
 
 interface LastMessage {
   reservation_id: number;
   content: string;
+  image_urls?: string[];
   created_at: string;
 }
 
@@ -54,6 +56,13 @@ export default function ChatPage() {
   const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
   const [threadReads, setThreadReads] = useState<Record<string, string>>({});
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -63,6 +72,12 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, selectedReservation]);
+
+  useEffect(() => {
+    const urls = pendingFiles.map((file) => URL.createObjectURL(file));
+    setPendingPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [pendingFiles]);
 
   const filteredReservations = useMemo(
     () =>
@@ -101,7 +116,7 @@ export default function ChatPage() {
     Promise.all([
       supabase
         .from('chat_messages')
-        .select('reservation_id, content, created_at')
+        .select('reservation_id, content, image_urls, created_at')
         .in('reservation_id', ids)
         .order('created_at', { ascending: false }),
       supabase
@@ -186,6 +201,7 @@ export default function ChatPage() {
             [selectedReservation.id]: {
               reservation_id: parseInt(selectedReservation.id, 10),
               content: newMsg.content,
+              image_urls: newMsg.image_urls,
               created_at: newMsg.created_at,
             },
           }));
@@ -200,19 +216,122 @@ export default function ChatPage() {
   }, [selectedReservation, currentUser]);
 
   const handleSend = async () => {
-    if (!selectedReservation || !currentUser?.id || !inputValue.trim()) return;
+    if (!selectedReservation || !currentUser?.id || (!inputValue.trim() && pendingFiles.length === 0)) return;
     setIsSending(true);
     const supabase = createNextBrowserSupabaseClient();
-    const { error } = await supabase.from('chat_messages').insert({
+    
+    const uploadedUrls: string[] = [];
+
+    // Upload files if any
+    if (pendingFiles.length > 0) {
+      for (const file of pendingFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `${selectedReservation.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-images')
+          .getPublicUrl(filePath);
+
+        if (publicUrlData.publicUrl) {
+          uploadedUrls.push(publicUrlData.publicUrl);
+        }
+      }
+    }
+    
+    const { data: insertedMsg, error } = await supabase.from('chat_messages').insert({
       reservation_id: parseInt(selectedReservation.id, 10),
       sender_id: currentUser.id,
       sender_role: userRole || 'client',
       sender_name: currentUser.name || currentUser.email.split('@')[0],
       content: inputValue.trim(),
-    });
+      image_urls: uploadedUrls,
+    }).select().single();
+    
     setIsSending(false);
-    if (!error) {
+    if (!error && insertedMsg) {
       setInputValue('');
+      setPendingFiles([]);
+      setMessages((prev) => prev.some((m) => m.id === insertedMsg.id) ? prev : [...prev, insertedMsg as ChatMessage]);
+      setLastMessages((prev) => ({
+        ...prev,
+        [selectedReservation.id]: {
+          reservation_id: parseInt(selectedReservation.id, 10),
+          content: insertedMsg.content,
+          image_urls: insertedMsg.image_urls,
+          created_at: insertedMsg.created_at,
+        },
+      }));
+    } else if (error) {
+      toast.error('Failed to send message');
+    }
+  };
+
+  const addFiles = (files: File[]) => {
+    setPendingFiles((prev) => {
+      const newFiles = [...prev, ...files];
+      if (newFiles.length > 5) {
+        toast.error('Maximum 5 images allowed per message.');
+        return newFiles.slice(0, 5);
+      }
+      const validFiles = newFiles.filter((file) => {
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} exceeds 10MB limit.`);
+          return false;
+        }
+        return true;
+      });
+      return validFiles;
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    addFiles(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Do not set false immediately if dragging over children. We leave it true until drop or leaving entire window.
+    // For simplicity, we can let it be, but setting to false causes flicker.
+    // Actually, setting false on dragLeave the pane is what we want, but since it bubbles we check relatedTarget
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/')));
     }
   };
 
@@ -309,7 +428,9 @@ export default function ChatPage() {
                         className={`flex items-center justify-between gap-2 mt-2 text-sm ${isSelected ? 'opacity-90' : 'text-muted-foreground'
                           }`}
                       >
-                        <span className="truncate min-w-0 max-[900px]:text-[13px]">{lastMsg.content}</span>
+                        <span className="truncate min-w-0 max-[900px]:text-[13px]">
+                          {lastMsg.content || (lastMsg.image_urls?.length ? `📷 ${lastMsg.image_urls.length} image${lastMsg.image_urls.length > 1 ? 's' : ''}` : 'No messages yet')}
+                        </span>
                         <span className="shrink-0 whitespace-nowrap opacity-60">
                           {new Date(lastMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -333,7 +454,21 @@ export default function ChatPage() {
   );
 
   const chatPane = (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/5">
+    <div 
+      className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/5 relative w-full"
+      onDragOver={selectedReservation ? onDragOver : undefined}
+      onDragEnter={selectedReservation ? onDragEnter : undefined}
+      onDragLeave={selectedReservation ? onDragLeave : undefined}
+      onDrop={selectedReservation ? onDrop : undefined}
+    >
+      {isDragging && selectedReservation && (
+         <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center border-4 border-dashed border-primary">
+           <div className="bg-background px-6 py-4 rounded-xl font-semibold text-lg text-primary shadow-lg pointer-events-none flex items-center gap-2">
+             <ImageIcon className="size-6" /> Drop images here to attach
+           </div>
+         </div>
+      )}
+      
       {selectedReservation ? (
         <>
           <div className="p-4 border-b shrink-0 flex flex-wrap items-start justify-between bg-background/50 backdrop-blur-sm gap-4">
@@ -422,18 +557,39 @@ export default function ChatPage() {
                 messages.map((m) => (
                   <div
                     key={m.id}
-                    className={`flex ${m.sender_role === 'employee' ? 'justify-end' : 'justify-start'
-                      }`}
+                    className={`flex ${m.sender_role === 'employee' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${m.sender_role === 'employee'
+                      className={`max-w-[85%] rounded-2xl flex flex-col ${
+                        m.image_urls && m.image_urls.length > 0 ? 'p-1.5' : 'px-4 py-2.5'
+                      } ${m.sender_role === 'employee'
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'bg-muted/80 backdrop-blur-sm'
                         }`}
                     >
-                      <div className="flex flex-row items-baseline justify-between gap-4">
-                        <p className="text-base flex-1 min-w-0">{m.content}</p>
-                        <span className="text-xs opacity-70 shrink-0 whitespace-nowrap">
+                      {m.image_urls && m.image_urls.length > 0 && (
+                        <div className={`grid gap-1.5 ${m.content ? 'mb-2' : ''} ${m.image_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                          {m.image_urls.map((url, i) => (
+                            <button 
+                              key={i} 
+                              type="button"
+                              onClick={() => setLightboxUrl(url)}
+                              className="relative overflow-hidden rounded-[10px] border border-black/5 hover:opacity-90 transition-opacity"
+                            >
+                              <img
+                                src={url}
+                                alt="Attached"
+                                className="object-cover w-full h-full aspect-square"
+                                loading="lazy"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <div className={`flex flex-row items-baseline justify-between gap-4 ${m.image_urls && m.image_urls.length > 0 ? 'px-2 pb-1 pt-1' : ''}`}>
+                        {m.content && <p className="text-base flex-1 min-w-0">{m.content}</p>}
+                        <span className="text-xs opacity-70 shrink-0 whitespace-nowrap self-end">
                           {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -444,16 +600,58 @@ export default function ChatPage() {
               <div ref={messagesEndRef} className="h-1" />
             </div>
           </ScrollArea>
-          <div className="p-4 border-t flex gap-2 shrink-0 bg-background">
-            <Input
-              placeholder="Type your message here..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            />
-            <Button onClick={handleSend} disabled={isSending || !inputValue.trim()}>
-              {isSending ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
-            </Button>
+          <div className="flex flex-col border-t bg-background relative transition-all">
+            {pendingPreviews.length > 0 && (
+              <div className="flex p-3 gap-2 overflow-x-auto border-b bg-muted/20 items-center">
+                <span className="text-xs font-semibold uppercase text-muted-foreground ml-1 mr-2 px-1 shrink-0 whitespace-nowrap">
+                  <ImageIcon className="inline-block size-3 mr-1" />
+                  {pendingPreviews.length} / 5
+                </span>
+                {pendingPreviews.map((url, i) => (
+                  <div key={url} className="relative shrink-0 size-14 border rounded-md overflow-hidden group">
+                    <img src={url} alt="Preview" className="object-cover w-full h-full" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="p-4 flex gap-2 shrink-0">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                type="button" 
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={pendingFiles.length >= 5}
+              >
+                <Paperclip className="size-5" />
+              </Button>
+              <Input
+                placeholder="Type your message here..."
+                value={inputValue}
+                className="flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              />
+              <Button onClick={handleSend} disabled={isSending || (!inputValue.trim() && pendingFiles.length === 0)} className="shrink-0 px-6 rounded-full font-medium shadow-sm transition-all">
+                {isSending ? <Loader2 className="size-4 animate-spin" /> : 'Send'}
+              </Button>
+            </div>
           </div>
         </>
       ) : (
@@ -503,6 +701,28 @@ export default function ChatPage() {
           reservation={isDetailsModalOpen ? selectedReservation : null}
           onClose={() => setIsDetailsModalOpen(false)}
         />
+      )}
+
+      {/* Lightbox for images */}
+      {lightboxUrl && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 md:p-8 animate-in fade-in duration-200"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button 
+            type="button"
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="size-8" />
+          </button>
+          <img 
+            src={lightboxUrl} 
+            alt="Expanded view" 
+            className="max-w-full max-h-full object-contain rounded-md"
+            onClick={(e) => e.stopPropagation()} 
+          />
+        </div>
       )}
     </div>
   );

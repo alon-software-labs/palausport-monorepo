@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import HeroBanner from "@/components/HeroBanner";
 import { Navbar } from "@/components/Navbar";
 import { ClientRouteGuard } from "@/components/ClientRouteGuard";
-import { Anchor, ArrowLeft } from "lucide-react";
+import { Anchor, ArrowLeft, Paperclip, X, ImageIcon, Loader2 } from "lucide-react";
 
 interface ChatMessage {
   id: number;
@@ -18,6 +18,7 @@ interface ChatMessage {
   sender_name: string;
   content: string;
   created_at: string;
+  image_urls?: string[];
 }
 
 interface ReservationRow {
@@ -35,11 +36,24 @@ export default function ReservationChat() {
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, pendingFiles]);
+
+  useEffect(() => {
+    const urls = pendingFiles.map((file) => URL.createObjectURL(file));
+    setPendingPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [pendingFiles]);
 
   const fetchReservation = useCallback(async () => {
     if (!id || !currentUser?.email) return;
@@ -137,12 +151,38 @@ export default function ReservationChat() {
   }, [reservation?.id, id, fetchMessages]);
 
   const handleSend = async () => {
-    if (!id || !currentUser || !inputValue.trim()) return;
+    if (!id || !currentUser || (!inputValue.trim() && pendingFiles.length === 0)) return;
     setIsSending(true);
     const content = inputValue.trim();
     const senderName = currentUser.name || currentUser.email.split("@")[0];
-    setInputValue("");
+    
     const supabase = createSupabaseJsClient();
+    const uploadedUrls: string[] = [];
+
+    if (pendingFiles.length > 0) {
+      for (const file of pendingFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        const filePath = `${id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('chat-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          continue;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('chat-images')
+          .getPublicUrl(filePath);
+
+        if (publicUrlData.publicUrl) {
+          uploadedUrls.push(publicUrlData.publicUrl);
+        }
+      }
+    }
+
     const { data: newMsg, error: err } = await supabase
       .from("chat_messages")
       .insert({
@@ -151,12 +191,48 @@ export default function ReservationChat() {
         sender_role: "client",
         sender_name: senderName,
         content,
+        image_urls: uploadedUrls,
       })
       .select()
       .single();
+      
     setIsSending(false);
-    if (err) {
-      setInputValue(content);
+    if (!err && newMsg) {
+      setInputValue("");
+      setPendingFiles([]);
+      setMessages((prev) => prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg as ChatMessage]);
+    }
+  };
+
+  const addFiles = (files: File[]) => {
+    setPendingFiles((prev) => {
+      const newFiles = [...prev, ...files];
+      if (newFiles.length > 5) return newFiles.slice(0, 5);
+      return newFiles.filter(file => file.size <= 10 * 1024 * 1024);
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    addFiles(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+  const onDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/')));
     }
   };
 
@@ -222,7 +298,21 @@ export default function ReservationChat() {
             </Link>
           </Button>
         </div>
-        <div className="border rounded-lg overflow-hidden">
+        <div 
+          className="border rounded-lg overflow-hidden relative"
+          onDragOver={onDragOver}
+          onDragEnter={onDragEnter}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
+          {isDragging && (
+            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center border-4 border-dashed border-primary">
+              <div className="bg-background px-6 py-4 rounded-xl font-semibold text-lg text-primary shadow-lg pointer-events-none flex items-center gap-2">
+                <ImageIcon className="size-6" /> Drop images here to attach
+              </div>
+            </div>
+          )}
+          
           <div className="p-4 border-b bg-muted/50">
             <h2 className="font-semibold">Chat Support</h2>
             <p className="text-sm text-muted-foreground">
@@ -245,15 +335,47 @@ export default function ReservationChat() {
                     }`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                      className={`max-w-[80%] rounded-xl ${
+                        m.image_urls && m.image_urls.length > 0 ? 'p-1.5' : 'px-3 py-2.5'
+                      } ${
                         m.sender_role === "client" ? "bg-primary text-primary-foreground" : "bg-muted"
                       }`}
                     >
-                      <p className="text-xs opacity-80">{m.sender_name}</p>
-                      <p className="text-sm">{m.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {new Date(m.created_at).toLocaleString()}
+                      {/* Name Header */}
+                      <p className={`text-[11px] uppercase tracking-wide opacity-70 font-semibold mb-1.5 ${m.image_urls && m.image_urls.length > 0 ? 'px-2 pt-1' : ''}`}>
+                        {m.sender_name}
                       </p>
+                      
+                      {/* Images */}
+                      {m.image_urls && m.image_urls.length > 0 && (
+                        <div className={`grid gap-1.5 ${m.content ? 'mb-2' : ''} ${m.image_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                          {m.image_urls.map((url, i) => (
+                            <button 
+                              key={i} 
+                              type="button"
+                              onClick={() => setLightboxUrl(url)}
+                              className="relative overflow-hidden rounded-lg hover:opacity-90 transition-opacity border border-black/5"
+                            >
+                              <img
+                                src={url}
+                                alt="Attached"
+                                className="object-cover w-full h-full aspect-square"
+                                loading="lazy"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Content & Timestamp */}
+                      {(m.content || (!m.content && m.created_at)) && (
+                        <div className={`flex flex-col ${m.image_urls && m.image_urls.length > 0 ? 'px-1.5 pb-0.5' : ''}`}>
+                          {m.content && <p className="text-[14px] leading-snug break-words mb-1">{m.content}</p>}
+                          <p className="text-[10px] opacity-60 self-end mt-0.5">
+                            {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -261,16 +383,57 @@ export default function ReservationChat() {
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
-          <div className="p-4 border-t flex gap-2">
-            <Input
-              placeholder="Type a message..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            />
-            <Button onClick={handleSend} disabled={isSending || !inputValue.trim()}>
-              Send
-            </Button>
+          <div className="flex flex-col border-t bg-background relative transition-all">
+            {pendingPreviews.length > 0 && (
+              <div className="flex p-3 gap-2 overflow-x-auto border-b bg-muted/20 items-center">
+                <span className="text-xs font-semibold uppercase text-muted-foreground ml-1 mr-2 px-1 shrink-0 whitespace-nowrap">
+                  <ImageIcon className="inline-block size-3 mr-1" />
+                  {pendingPreviews.length} / 5
+                </span>
+                {pendingPreviews.map((url, i) => (
+                  <div key={url} className="relative shrink-0 size-14 border rounded-md overflow-hidden group">
+                    <img src={url} alt="Preview" className="object-cover w-full h-full" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="p-4 flex gap-2 shrink-0">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                type="button" 
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={pendingFiles.length >= 5}
+              >
+                <Paperclip className="size-5" />
+              </Button>
+              <Input
+                placeholder="Type a message..."
+                value={inputValue}
+                className="flex-1 border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent px-2"
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              />
+              <Button onClick={handleSend} disabled={isSending || (!inputValue.trim() && pendingFiles.length === 0)} className="shrink-0 px-6 rounded-full font-medium shadow-sm transition-all">
+                {isSending ? <Loader2 className="size-4 animate-spin" /> : "Send"}
+              </Button>
+            </div>
           </div>
         </div>
       </main>
@@ -280,6 +443,28 @@ export default function ReservationChat() {
           <span>Cruise Reservation System</span>
         </div>
       </footer>
+
+      {/* Lightbox for images */}
+      {lightboxUrl && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 md:p-8 animate-in fade-in duration-200"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button 
+            type="button"
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="size-8" />
+          </button>
+          <img 
+            src={lightboxUrl} 
+            alt="Expanded view" 
+            className="max-w-full max-h-full object-contain rounded-md"
+            onClick={(e) => e.stopPropagation()} 
+          />
+        </div>
+      )}
     </div>
   );
 }
