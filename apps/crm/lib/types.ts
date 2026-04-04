@@ -10,6 +10,10 @@ export interface Passenger {
   // phone?: string;
   cabinType: CabinType;
   allergies?: string;
+  /** DAN membership ID number supplied by the passenger */
+  danId?: string;
+  /** True when the passenger opted to purchase DAN insurance via Palau Sport */
+  buyDanInsurance?: boolean;
 }
 
 export interface Reservation {
