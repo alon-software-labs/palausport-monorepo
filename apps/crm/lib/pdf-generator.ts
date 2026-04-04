@@ -133,8 +133,8 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
     let passengerCount = 0;
     
     reservation.passengers.forEach((passenger, index) => {
-      const pName = passenger.name || 'Unknown Passenger';
-      const pAge = passenger.age || 'N/A';
+      const pName = passenger.fullName || 'Unknown Passenger';
+      const pAge = (passenger as any).age || 'N/A';
       if (passengerCount === maxPassengersPerRow) {
         yPos += 6;
         passengerCount = 0;
@@ -313,7 +313,7 @@ export function generateBoardingPassesPDF(reservation: Reservation, event?: Crui
   // We iterate through passengers, creating a page per passenger
   if (reservation.passengers && reservation.passengers.length > 0) {
     reservation.passengers.forEach((passenger, index) => {
-      const pName = passenger.name || 'Unknown Passenger';
+      const pName = passenger.fullName || 'Unknown Passenger';
       if (index > 0) {
         doc.addPage();
       }

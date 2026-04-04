@@ -47,11 +47,18 @@ const reservationSchema = z.object({
   numberOfPassengers: z.coerce.number().min(1, "At least 1 passenger").max(22, "Maximum 22 passengers"),
   selectedCabinIds: z.array(z.string()).min(1, "Please select at least one cabin from the map"),
   cabinOccupancies: z.record(z.string(), z.string().min(1, "Occupancy rate required")),
-  passengers: z.array(z.object({
-    fullName: z.string().trim().min(1, "Passenger name is required").max(200),
-    cabinType: z.string().min(1, "Cabin type is required"),
-    foodAllergies: z.string().optional(),
-  })),
+  passengers: z.array(
+    z.object({
+      fullName: z.string().trim().min(1, "Passenger name is required").max(200),
+      cabinType: z.string().min(1, "Cabin type is required"),
+      foodAllergies: z.string().optional(),
+      danId: z.string().optional(),
+      buyDanInsurance: z.boolean().optional(),
+    }).refine(
+      (p) => (p.danId && p.danId.trim().length > 0) || p.buyDanInsurance === true,
+      { message: "Please enter your DAN ID or check the box to buy DAN insurance", path: ["danId"] }
+    )
+  ),
   notes: z.string().optional(),
   termsAccepted: z.literal(true, { errorMap: () => ({ message: "You must accept the terms and conditions" }) }),
   agreementName: z.string().trim().min(1, "Please type your full name for agreement").max(200),
@@ -106,7 +113,7 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       numberOfPassengers: 1,
       selectedCabinIds: [],
       cabinOccupancies: {},
-      passengers: [{ fullName: "", cabinType: "", foodAllergies: "" }],
+      passengers: [{ fullName: "", cabinType: "", foodAllergies: "", danId: "", buyDanInsurance: false }],
       notes: "",
       termsAccepted: undefined as unknown as true,
       agreementName: "",
@@ -207,6 +214,8 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       fullName: fields[i]?.fullName || "",
       cabinType: fields[i]?.cabinType || "",
       foodAllergies: fields[i]?.foodAllergies || "",
+      danId: (fields[i] as any)?.danId || "",
+      buyDanInsurance: (fields[i] as any)?.buyDanInsurance || false,
     }));
     replace(newPassengers);
   };
@@ -242,6 +251,8 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
       fullName: p.fullName,
       cabinType: p.cabinType,
       foodAllergies: p.foodAllergies || undefined,
+      danId: p.danId?.trim() || undefined,
+      buyDanInsurance: p.buyDanInsurance ?? false,
     }));
 
     const notes = (() => {
@@ -731,9 +742,65 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
         </div>
       </div>
 
-      {/* STEP 8: Terms & Conditions */}
+      {/* STEP 8: Divers Alert Network */}
       <div className="section-card">
-        <SectionHeader step={8} title="Terms & Conditions" subtitle="Please review and accept before proceeding" />
+        <SectionHeader
+          step={8}
+          title="Divers Alert Network"
+          subtitle="Provide your DAN membership ID for each passenger, or opt to purchase DAN insurance through Palau Sport"
+        />
+        <div className="space-y-4">
+          {fields.map((field, index) => (
+            <div key={field.id} className="border rounded-lg p-4 bg-background">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                  {index + 1}
+                </div>
+                <p className="text-sm font-semibold text-foreground">
+                  {form.watch(`passengers.${index}.fullName`) || `Passenger ${index + 1}`}
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor={`danId-${index}`}>Divers Alert Network (DAN) ID Number</Label>
+                  <Input
+                    id={`danId-${index}`}
+                    {...form.register(`passengers.${index}.danId`)}
+                    className="mt-1.5"
+                    placeholder="Enter DAN ID number"
+                    disabled={form.watch(`passengers.${index}.buyDanInsurance`) === true}
+                  />
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id={`buyDanInsurance-${index}`}
+                    checked={form.watch(`passengers.${index}.buyDanInsurance`) === true}
+                    onCheckedChange={(checked) => {
+                      form.setValue(`passengers.${index}.buyDanInsurance`, checked === true, { shouldValidate: true });
+                      if (checked === true) {
+                        form.setValue(`passengers.${index}.danId`, "", { shouldValidate: true });
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`buyDanInsurance-${index}`} className="text-sm leading-relaxed cursor-pointer">
+                    Buy Divers Alert Network Insurance from{" "}
+                    <span className="font-semibold text-primary">Palau Sport</span>
+                  </Label>
+                </div>
+                {(form.formState.errors.passengers?.[index] as any)?.danId && (
+                  <p className="text-xs text-destructive mt-1">
+                    {(form.formState.errors.passengers?.[index] as any)?.danId?.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* STEP 9: Terms & Conditions */}
+      <div className="section-card">
+        <SectionHeader step={9} title="Terms & Conditions" subtitle="Please review and accept before proceeding" />
         <div className="bg-secondary/50 rounded-lg p-4 mb-4">
           <div className="flex items-start gap-2">
             <FileText className="w-5 h-5 text-primary mt-0.5 shrink-0" />
@@ -773,9 +840,9 @@ const ReservationForm = ({ currentUser }: ReservationFormProps) => {
         )}
       </div>
 
-      {/* STEP 9: Agreement & Approval */}
+      {/* STEP 10: Agreement & Approval */}
       <div className="section-card">
-        <SectionHeader step={9} title="Agreement & Approval" subtitle="Type your full name as your digital signature" />
+        <SectionHeader step={10} title="Agreement & Approval" subtitle="Type your full name as your digital signature" />
         <div className="flex items-start gap-2 mb-4">
           <PenLine className="w-5 h-5 text-primary mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
