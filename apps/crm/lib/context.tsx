@@ -50,6 +50,13 @@ interface DbCruiseEvent {
   created_at: string;
 }
 
+interface EventUpsertPayload {
+  name: string;
+  date: string;
+  destination: string;
+  capacity: number;
+}
+
 interface DbReservation {
   id: number;
   event_id: number;
@@ -141,6 +148,9 @@ interface AppContextType {
   addReservation: (reservation: Omit<Reservation, 'id'> & { id?: string }) => Promise<{ success: boolean; error?: string }>;
   updateReservation: (reservation: Reservation) => Promise<{ success: boolean; error?: string }>;
   deleteReservation: (id: string) => Promise<{ success: boolean; error?: string }>;
+  addEvent: (event: EventUpsertPayload) => Promise<{ success: boolean; error?: string }>;
+  updateEvent: (event: CruiseEvent) => Promise<{ success: boolean; error?: string }>;
+  deleteEvent: (id: string) => Promise<{ success: boolean; error?: string }>;
   generateInvoice: (reservationId: string) => Promise<Invoice | null>;
   getInvoicesByReservation: (reservationId: string) => Invoice[];
   getEvent: (eventId: string) => CruiseEvent | undefined;
@@ -418,6 +428,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
+  const addEvent = async (event: EventUpsertPayload): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createNextBrowserSupabaseClient();
+
+    const { error } = await supabase.from('cruise_events').insert({
+      name: event.name,
+      date: event.date,
+      destination: event.destination,
+      capacity: event.capacity,
+    });
+
+    if (error) return { success: false, error: error.message };
+    await fetchData();
+    return { success: true };
+  };
+
+  const updateEvent = async (event: CruiseEvent): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createNextBrowserSupabaseClient();
+    const id = parseInt(event.id, 10);
+    if (isNaN(id)) return { success: false, error: 'Invalid event ID' };
+
+    const { error } = await supabase
+      .from('cruise_events')
+      .update({
+        name: event.name,
+        date: event.date,
+        destination: event.destination,
+        capacity: event.capacity,
+      })
+      .eq('id', id);
+
+    if (error) return { success: false, error: error.message };
+    await fetchData();
+    return { success: true };
+  };
+
+  const deleteEvent = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const supabase = createNextBrowserSupabaseClient();
+    const numId = parseInt(id, 10);
+    if (isNaN(numId)) return { success: false, error: 'Invalid event ID' };
+
+    const { count, error: countError } = await supabase
+      .from('reservations')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', numId);
+    if (countError) return { success: false, error: countError.message };
+    if ((count ?? 0) > 0) {
+      return {
+        success: false,
+        error: 'Cannot delete this event because it has associated reservations.',
+      };
+    }
+
+    const { error } = await supabase.from('cruise_events').delete().eq('id', numId);
+    if (error) return { success: false, error: error.message };
+
+    await fetchData();
+    return { success: true };
+  };
+
   const generateInvoice = async (reservationId: string): Promise<Invoice | null> => {
     const reservation = reservations.find(r => r.id === reservationId);
     if (!reservation) return null;
@@ -546,6 +615,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addReservation,
     updateReservation,
     deleteReservation,
+    addEvent,
+    updateEvent,
+    deleteEvent,
     generateInvoice,
     getInvoicesByReservation,
     getEvent,
