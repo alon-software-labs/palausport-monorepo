@@ -23,6 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 interface ChatMessage {
   id: number;
   reservation_id: number;
+  reservation_group_id: string;
   sender_id: string;
   sender_role: 'client' | 'employee';
   sender_name: string;
@@ -32,15 +33,21 @@ interface ChatMessage {
 }
 
 interface LastMessage {
-  reservation_id: number;
+  reservation_group_id: string;
   content: string;
   image_urls?: string[];
   created_at: string;
 }
 
 interface ThreadRead {
-  reservation_id: number;
+  reservation_group_id: string;
   read_at: string;
+}
+
+interface ReservationThread {
+  groupId: string;
+  primary: Reservation;
+  cabinSummary: string;
 }
 
 const FILTER_STATUSES: ReservationStatus[] = ['PENDING', 'CONFIRMED', 'COMPLETED'];
@@ -48,7 +55,7 @@ const FILTER_STATUSES: ReservationStatus[] = ['PENDING', 'CONFIRMED', 'COMPLETED
 export default function ChatPage() {
   const { reservations, currentUser, userRole, getEvent, updateReservation } = useAppContext();
   const [activeFilters, setActiveFilters] = useState<ReservationStatus[]>(['PENDING', 'CONFIRMED']);
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [selectedThread, setSelectedThread] = useState<ReservationThread | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   useEffect(() => {
@@ -80,7 +87,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, selectedReservation]);
+  }, [messages, selectedThread]);
 
   useEffect(() => {
     const urls = pendingFiles.map((file) => URL.createObjectURL(file));
@@ -88,10 +95,29 @@ export default function ChatPage() {
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [pendingFiles]);
 
-  const filteredReservations = useMemo(
-    () =>
-      reservations.filter((r) => activeFilters.includes(r.status)),
-    [reservations, activeFilters]
+  const groupedThreads = useMemo((): ReservationThread[] => {
+    const byGroup = new Map<string, Reservation[]>();
+    for (const row of reservations) {
+      const groupId = row.reservationGroupId || `legacy-${row.id}`;
+      const list = byGroup.get(groupId) ?? [];
+      list.push(row);
+      byGroup.set(groupId, list);
+    }
+
+    return Array.from(byGroup.entries()).map(([groupId, rows]) => {
+      const sortedRows = [...rows].sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
+      const primary = sortedRows[0];
+      return {
+        groupId,
+        primary,
+        cabinSummary: sortedRows.map((r) => r.cabinId).join(', '),
+      };
+    });
+  }, [reservations]);
+
+  const filteredThreads = useMemo(
+    () => groupedThreads.filter((thread) => activeFilters.includes(thread.primary.status)),
+    [groupedThreads, activeFilters]
   );
 
   const toggleFilter = (status: ReservationStatus) => {
@@ -103,49 +129,48 @@ export default function ChatPage() {
   };
 
   const sortedReservations = useMemo(() => {
-    return [...filteredReservations].sort((a, b) => {
-      const lastA = lastMessages[a.id]?.created_at ?? a.createdAt;
-      const lastB = lastMessages[b.id]?.created_at ?? b.createdAt;
+    return [...filteredThreads].sort((a, b) => {
+      const lastA = lastMessages[a.groupId]?.created_at ?? a.primary.createdAt;
+      const lastB = lastMessages[b.groupId]?.created_at ?? b.primary.createdAt;
       return new Date(lastB).getTime() - new Date(lastA).getTime();
     });
-  }, [filteredReservations, lastMessages]);
+  }, [filteredThreads, lastMessages]);
 
   useEffect(() => {
     // On small screens we start on the list view, so don't auto-select
-    if (!selectedReservation && sortedReservations.length > 0 && !isSmallScreen) {
-      setTimeout(() => setSelectedReservation(sortedReservations[0]), 0);
+    if (!selectedThread && sortedReservations.length > 0 && !isSmallScreen) {
+      setTimeout(() => setSelectedThread(sortedReservations[0]), 0);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedReservations, selectedReservation, isSmallScreen]);
+  }, [sortedReservations, selectedThread, isSmallScreen]);
 
   useEffect(() => {
-    if (filteredReservations.length === 0 || !currentUser?.id) return;
+    if (filteredThreads.length === 0 || !currentUser?.id) return;
     let discarded = false;
     const supabase = createNextBrowserSupabaseClient();
-    const ids = filteredReservations.map((r) => parseInt(r.id, 10));
+    const groupIds = filteredThreads.map((thread) => thread.groupId);
 
     Promise.all([
       supabase
         .from('chat_messages')
-        .select('reservation_id, content, image_urls, created_at')
-        .in('reservation_id', ids)
+        .select('reservation_group_id, content, image_urls, created_at')
+        .in('reservation_group_id', groupIds)
         .order('created_at', { ascending: false }),
       supabase
         .from('chat_thread_reads')
-        .select('reservation_id, read_at')
+        .select('reservation_group_id, read_at')
         .eq('user_id', currentUser.id)
-        .in('reservation_id', ids),
+        .in('reservation_group_id', groupIds),
     ]).then(([msgRes, readRes]) => {
       if (discarded) return;
       const lastByRes: Record<string, LastMessage> = {};
       (msgRes.data ?? []).forEach((row: LastMessage) => {
-        const key = String(row.reservation_id);
+        const key = row.reservation_group_id;
         if (!lastByRes[key]) lastByRes[key] = row;
       });
       setLastMessages(lastByRes);
       const readsByRes: Record<string, string> = {};
       (readRes.data ?? []).forEach((row: ThreadRead) => {
-        readsByRes[String(row.reservation_id)] = row.read_at;
+        readsByRes[row.reservation_group_id] = row.read_at;
       });
       setThreadReads(readsByRes);
     });
@@ -153,18 +178,19 @@ export default function ChatPage() {
     return () => {
       discarded = true;
     };
-  }, [filteredReservations, currentUser]);
+  }, [filteredThreads, currentUser]);
 
   useEffect(() => {
-    if (!selectedReservation) return;
-    const reservationId = selectedReservation.id;
+    if (!selectedThread) return;
+    const reservationId = selectedThread.primary.id;
+    const groupId = selectedThread.groupId;
     let discarded = false;
     const supabase = createNextBrowserSupabaseClient();
 
     supabase
       .from('chat_messages')
       .select('*')
-      .eq('reservation_id', parseInt(reservationId, 10))
+      .eq('reservation_group_id', groupId)
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
         if (discarded) return;
@@ -183,34 +209,35 @@ export default function ChatPage() {
           {
             user_id: currentUser.id,
             reservation_id: parseInt(reservationId, 10),
+            reservation_group_id: groupId,
             read_at: new Date().toISOString(),
           },
-          { onConflict: 'user_id,reservation_id' }
+          { onConflict: 'user_id,reservation_group_id' }
         )
         .then(() => {
           if (!discarded) {
-            setThreadReads((prev) => ({ ...prev, [reservationId]: new Date().toISOString() }));
+            setThreadReads((prev) => ({ ...prev, [groupId]: new Date().toISOString() }));
           }
         });
     }
 
     const channel = supabase
-      .channel(`chat-${selectedReservation.id}`)
+      .channel(`chat-${groupId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `reservation_id=eq.${selectedReservation.id}`,
+          filter: `reservation_group_id=eq.${groupId}`,
         },
         (payload) => {
           const newMsg = payload.new as ChatMessage;
-          setMessages((prev) => [...prev, newMsg]);
+          setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
           setLastMessages((prev) => ({
             ...prev,
-            [selectedReservation.id]: {
-              reservation_id: parseInt(selectedReservation.id, 10),
+            [groupId]: {
+              reservation_group_id: groupId,
               content: newMsg.content,
               image_urls: newMsg.image_urls,
               created_at: newMsg.created_at,
@@ -224,12 +251,13 @@ export default function ChatPage() {
       discarded = true;
       supabase.removeChannel(channel);
     };
-  }, [selectedReservation, currentUser]);
+  }, [selectedThread, currentUser]);
 
   const handleSend = async () => {
-    if (!selectedReservation || !currentUser?.id || (!inputValue.trim() && pendingFiles.length === 0)) return;
+    if (!selectedThread || !currentUser?.id || (!inputValue.trim() && pendingFiles.length === 0)) return;
     setIsSending(true);
     const supabase = createNextBrowserSupabaseClient();
+    const primaryReservationId = parseInt(selectedThread.primary.id, 10);
     
     const uploadedUrls: string[] = [];
 
@@ -238,7 +266,7 @@ export default function ChatPage() {
       for (const file of pendingFiles) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        const filePath = `${selectedReservation.id}/${fileName}`;
+        const filePath = `${selectedThread.groupId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('chat-images')
@@ -260,7 +288,8 @@ export default function ChatPage() {
     }
     
     const { data: insertedMsg, error } = await supabase.from('chat_messages').insert({
-      reservation_id: parseInt(selectedReservation.id, 10),
+      reservation_id: primaryReservationId,
+      reservation_group_id: selectedThread.groupId,
       sender_id: currentUser.id,
       sender_role: userRole || 'client',
       sender_name: currentUser.name || currentUser.email.split('@')[0],
@@ -275,8 +304,8 @@ export default function ChatPage() {
       setMessages((prev) => prev.some((m) => m.id === insertedMsg.id) ? prev : [...prev, insertedMsg as ChatMessage]);
       setLastMessages((prev) => ({
         ...prev,
-        [selectedReservation.id]: {
-          reservation_id: parseInt(selectedReservation.id, 10),
+        [selectedThread.groupId]: {
+          reservation_group_id: selectedThread.groupId,
           content: insertedMsg.content,
           image_urls: insertedMsg.image_urls,
           created_at: insertedMsg.created_at,
@@ -347,11 +376,11 @@ export default function ChatPage() {
   };
 
   const handleStatusUpdate = async (newStatus: ReservationStatus) => {
-    if (!selectedReservation) return;
+    if (!selectedThread) return;
 
     setIsUpdatingStatus(true);
     const { success, error } = await updateReservation({
-      ...selectedReservation,
+      ...selectedThread.primary,
       status: newStatus,
     });
 
@@ -359,7 +388,7 @@ export default function ChatPage() {
 
     if (success) {
       toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
-      setSelectedReservation((prev) => (prev ? { ...prev, status: newStatus } : null));
+      setSelectedThread((prev) => (prev ? { ...prev, primary: { ...prev.primary, status: newStatus } } : null));
     } else {
       toast.error(error || 'Failed to update status');
     }
@@ -386,18 +415,18 @@ export default function ChatPage() {
       <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="space-y-1">
           {sortedReservations.map((r) => {
-            const event = getEvent(r.eventId);
-            const isSelected = selectedReservation?.id === r.id;
-            const lastMsg = lastMessages[r.id];
-            const readAt = threadReads[r.id];
+            const event = getEvent(r.primary.eventId);
+            const isSelected = selectedThread?.groupId === r.groupId;
+            const lastMsg = lastMessages[r.groupId];
+            const readAt = threadReads[r.groupId];
             const isUnread =
               lastMsg &&
               (!readAt || new Date(lastMsg.created_at) > new Date(readAt));
             return (
               <button
-                key={r.id}
+                key={r.groupId}
                 type="button"
-                onClick={() => { setSelectedReservation(r); if (isSmallScreen) setMobileView('chat'); }}
+                onClick={() => { setSelectedThread(r); if (isSmallScreen) setMobileView('chat'); }}
                 className={`w-full text-left p-3 rounded-lg transition-colors ${isSelected
                   ? 'bg-primary text-primary-foreground'
                   : isUnread
@@ -417,21 +446,21 @@ export default function ChatPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-1.5">
                       <p className="font-medium text-sm min-w-0 leading-snug">
-                        {r.customerName}
+                        {r.primary.customerName}
                         <span className="max-[900px]:hidden"> • {event?.name}</span>
-                        <span className="opacity-60 text-xs"> · Cabin {r.cabinId}</span>
+                        <span className="opacity-60 text-xs"> · Cabins {r.cabinSummary}</span>
                       </p>
                       <span
-                        className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border mt-0.5 whitespace-nowrap ${r.status === 'PENDING'
+                        className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border mt-0.5 whitespace-nowrap ${r.primary.status === 'PENDING'
                           ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                          : r.status === 'CONFIRMED'
+                          : r.primary.status === 'CONFIRMED'
                             ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                            : r.status === 'COMPLETED'
+                            : r.primary.status === 'COMPLETED'
                               ? 'bg-green-500/10 text-green-500 border-green-500/20'
                               : 'bg-red-500/10 text-red-500 border-red-500/20'
                           }`}
                       >
-                        {r.status.replace('_', ' ')}
+                        {r.primary.status.replace('_', ' ')}
                       </span>
                     </div>
                     {lastMsg ? (
@@ -463,12 +492,12 @@ export default function ChatPage() {
   const chatPane = (
     <div 
       className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/5 relative w-full"
-      onDragOver={selectedReservation ? onDragOver : undefined}
-      onDragEnter={selectedReservation ? onDragEnter : undefined}
-      onDragLeave={selectedReservation ? onDragLeave : undefined}
-      onDrop={selectedReservation ? onDrop : undefined}
+      onDragOver={selectedThread ? onDragOver : undefined}
+      onDragEnter={selectedThread ? onDragEnter : undefined}
+      onDragLeave={selectedThread ? onDragLeave : undefined}
+      onDrop={selectedThread ? onDrop : undefined}
     >
-      {isDragging && selectedReservation && (
+      {isDragging && selectedThread && (
          <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center border-4 border-dashed border-primary">
            <div className="bg-background px-6 py-4 rounded-xl font-semibold text-lg text-primary shadow-lg pointer-events-none flex items-center gap-2">
              <ImageIcon className="size-6" /> Drop images here to attach
@@ -476,7 +505,7 @@ export default function ChatPage() {
          </div>
       )}
       
-      {selectedReservation ? (
+      {selectedThread ? (
         <>
           {/* Chat header — stacks cleanly on iPhone SE (375px) */}
           <div className="p-2.5 sm:p-4 border-b shrink-0 bg-background/50 backdrop-blur-sm">
@@ -498,15 +527,15 @@ export default function ChatPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <h2 className="font-semibold text-sm sm:text-base leading-tight truncate max-w-[180px] sm:max-w-none">
-                        {selectedReservation.customerName}
-                        <span className="hidden xs:inline"> • {getEvent(selectedReservation.eventId)?.destination}</span>
+                        {selectedThread.primary.customerName}
+                        <span className="hidden xs:inline"> • {getEvent(selectedThread.primary.eventId)?.destination}</span>
                       </h2>
                       <span className="shrink-0 px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-mono font-bold tracking-wider">
-                        #{selectedReservation.id.slice(0, 8).toUpperCase()}
+                        #{selectedThread.groupId.slice(0, 8).toUpperCase()}
                       </span>
                     </div>
                     <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 leading-tight">
-                      {getEvent(selectedReservation.eventId)?.name} • Cabin {selectedReservation.cabinId}
+                      {getEvent(selectedThread.primary.eventId)?.name} • Cabins {selectedThread.cabinSummary}
                     </p>
                   </div>
                   <Button
@@ -524,7 +553,7 @@ export default function ChatPage() {
             {userRole === 'employee' && (
               <div className="flex items-center gap-2 mt-2 pl-0 sm:pl-0">
                 <Select
-                  value={selectedReservation.status}
+                  value={selectedThread.primary.status}
                   onValueChange={(value) => handleStatusUpdate(value as ReservationStatus)}
                   disabled={isUpdatingStatus}
                 >
@@ -552,15 +581,15 @@ export default function ChatPage() {
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-3 text-center opacity-70">Booking</p>
                   <div className="grid grid-cols-[auto_1fr] gap-y-1.5 gap-x-3 text-[12px]">
                     <div className="text-muted-foreground">Ref</div>
-                    <div className="font-mono font-medium">{selectedReservation.id.slice(0, 8).toUpperCase()}</div>
+                    <div className="font-mono font-medium">{selectedThread.groupId.slice(0, 8).toUpperCase()}</div>
                     <div className="text-muted-foreground">To</div>
-                    <div className="font-medium truncate">{getEvent(selectedReservation.eventId)?.destination || 'Palau Route'}</div>
+                    <div className="font-medium truncate">{getEvent(selectedThread.primary.eventId)?.destination || 'Palau Route'}</div>
                     <div className="text-muted-foreground">Departs</div>
-                    <div className="font-medium">{getEvent(selectedReservation.eventId) ? new Date(getEvent(selectedReservation.eventId)!.date).toLocaleDateString() : 'TBD'}</div>
+                    <div className="font-medium">{getEvent(selectedThread.primary.eventId) ? new Date(getEvent(selectedThread.primary.eventId)!.date).toLocaleDateString() : 'TBD'}</div>
                     <div className="text-muted-foreground">Cabin</div>
-                    <div className="font-medium truncate">{selectedReservation.cabinType.replace('_', ' ')} · Unit {selectedReservation.cabinId}</div>
+                    <div className="font-medium truncate">{selectedThread.cabinSummary}</div>
                     <div className="text-muted-foreground">Guests</div>
-                    <div className="font-medium">{selectedReservation.totalGuests} Pax / {selectedReservation.passengers?.length || 0} Listed</div>
+                    <div className="font-medium">{selectedThread.primary.totalGuests} Pax / {selectedThread.primary.passengers?.length || 0} Listed</div>
                   </div>
                 </div>
               </div>
@@ -604,7 +633,7 @@ export default function ChatPage() {
                       )}
                       
                       <div className={`flex flex-row items-baseline justify-between gap-2 ${m.image_urls && m.image_urls.length > 0 ? 'px-2 pb-1 pt-1' : ''}`}>
-                        {m.content && <p className="text-sm flex-1 min-w-0 break-words">{m.content}</p>}
+                        {m.content && <p className="text-sm flex-1 min-w-0 wrap-break-word">{m.content}</p>}
                         <span className="text-[10px] opacity-70 shrink-0 whitespace-nowrap self-end">
                           {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -739,9 +768,9 @@ export default function ChatPage() {
         </ResizablePanelGroup>
       )}
 
-      {selectedReservation && (
+      {selectedThread && (
         <ReservationModal
-          reservation={isDetailsModalOpen ? selectedReservation : null}
+          reservation={isDetailsModalOpen ? selectedThread.primary : null}
           onClose={() => setIsDetailsModalOpen(false)}
         />
       )}

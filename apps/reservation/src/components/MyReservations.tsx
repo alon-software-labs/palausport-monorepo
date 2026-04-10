@@ -24,7 +24,7 @@ interface ReservationRow {
 
 /** One logical booking: multiple DB rows (cabins) share reservation_group_id */
 interface GroupedReservation {
-  chatReservationId: number;
+  reservationGroupId: string;
   cabinLabels: string;
   status: string;
   total_guests: number;
@@ -35,7 +35,7 @@ interface GroupedReservation {
 }
 
 interface LastMessage {
-  reservation_id: number;
+  reservation_group_id: string;
   content: string;
   created_at: string;
 }
@@ -49,7 +49,7 @@ function statusToBadgeVariant(status: string): "default" | "secondary" | "outlin
 export function MyReservations() {
   const { currentUser } = useAuth();
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
-  const [lastMessages, setLastMessages] = useState<Record<number, LastMessage>>({});
+  const [lastMessages, setLastMessages] = useState<Record<string, LastMessage>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,18 +78,18 @@ export function MyReservations() {
   }, [currentUser?.email]);
 
   const fetchLastMessages = useCallback(
-    (reservationIds: number[]) => {
-      if (reservationIds.length === 0) return;
+    (groupIds: string[]) => {
+      if (groupIds.length === 0) return;
       const supabase = createSupabaseJsClient();
       supabase
         .from("chat_messages")
-        .select("reservation_id, content, created_at")
-        .in("reservation_id", reservationIds)
+        .select("reservation_group_id, content, created_at")
+        .in("reservation_group_id", groupIds)
         .order("created_at", { ascending: false })
         .then(({ data }) => {
-          const byRes: Record<number, LastMessage> = {};
+          const byRes: Record<string, LastMessage> = {};
           (data ?? []).forEach((row: LastMessage) => {
-            if (!byRes[row.reservation_id]) byRes[row.reservation_id] = row;
+            if (!byRes[row.reservation_group_id]) byRes[row.reservation_group_id] = row;
           });
           setLastMessages(byRes);
         });
@@ -115,7 +115,7 @@ export function MyReservations() {
         const primary = sorted[0];
         const cabinLabels = sorted.map((x) => x.cabin_id).join(", ");
         return {
-          chatReservationId: primary.id,
+          reservationGroupId: primary.reservation_group_id,
           cabinLabels,
           status: primary.status,
           total_guests: primary.total_guests,
@@ -133,7 +133,7 @@ export function MyReservations() {
       (r) => r.status === "PENDING" || r.status === "CONFIRMED"
     );
     if (active.length > 0) {
-      fetchLastMessages(active.map((r) => r.chatReservationId));
+      fetchLastMessages(active.map((r) => r.reservationGroupId));
     } else {
       setLastMessages({});
     }
@@ -180,7 +180,7 @@ export function MyReservations() {
       <h2 className="section-title mb-4">My Reservations</h2>
       <div className="space-y-4">
         {groupedReservations.map((r) => (
-          <Card key={`${r.chatReservationId}-${r.event_id}`}>
+          <Card key={`${r.reservationGroupId}-${r.event_id}`}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-medium flex items-center gap-2">
@@ -204,8 +204,8 @@ export function MyReservations() {
                 </span>
                 {(r.status === "PENDING" || r.status === "CONFIRMED") && (
                   <Button variant="outline" size="sm" asChild>
-                    <Link to={`/reservations/${r.chatReservationId}/chat`} className="flex items-center gap-2">
-                      {lastMessages[r.chatReservationId] && (
+                    <Link to={`/reservations/${r.reservationGroupId}/chat`} className="flex items-center gap-2">
+                      {lastMessages[r.reservationGroupId] && (
                         <span className="size-2 rounded-full bg-primary shrink-0" aria-label="New messages" />
                       )}
                       <MessageSquare className="w-4 h-4" />

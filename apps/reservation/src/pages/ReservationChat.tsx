@@ -13,6 +13,7 @@ import { Anchor, ArrowLeft, Paperclip, X, ImageIcon, Loader2 } from "lucide-reac
 interface ChatMessage {
   id: number;
   reservation_id: number;
+  reservation_group_id: string;
   sender_id: string;
   sender_role: "client" | "employee";
   sender_name: string;
@@ -23,8 +24,9 @@ interface ChatMessage {
 
 interface ReservationRow {
   id: number;
+  reservation_group_id: string;
   event_id: number;
-  cabin_id: string;
+  cabin_ids: string[];
   cruise_events: { name: string; date: string } | null;
 }
 
@@ -58,56 +60,77 @@ export default function ReservationChat() {
   const fetchReservation = useCallback(async () => {
     if (!id || !currentUser?.email) return;
     const supabase = createSupabaseJsClient();
-    const { data, error: err } = await supabase
+    const requestedRowId = Number.parseInt(id, 10);
+    const query = supabase
       .from("reservations")
-      .select("id, event_id, cabin_id, customer_email, status, cruise_events(name, date)")
-      .eq("id", parseInt(id, 10))
-      .single();
+      .select("id, reservation_group_id, event_id, cabin_id, customer_email, status, cruise_events(name, date)");
 
-    if (err || !data) {
+    const { data, error: err } = Number.isNaN(requestedRowId)
+      ? await query.eq("reservation_group_id", id).order("id", { ascending: true })
+      : await query.eq("id", requestedRowId).limit(1);
+
+    if (err || !data || data.length === 0) {
       setError("Reservation not found");
       setReservation(null);
       return;
     }
 
-    const row = data as unknown as {
+    const rows = data as unknown as Array<{
       id: number;
+      reservation_group_id: string;
       event_id: number;
       cabin_id: string;
       customer_email: string;
       status: string;
       cruise_events: { name: string; date: string } | { name: string; date: string }[] | null;
-    };
-    if (row.customer_email !== currentUser.email) {
+    }>;
+    const rowSet = Number.isNaN(requestedRowId)
+      ? rows
+      : await supabase
+          .from("reservations")
+          .select("id, reservation_group_id, event_id, cabin_id, customer_email, status, cruise_events(name, date)")
+          .eq("reservation_group_id", rows[0].reservation_group_id)
+          .order("id", { ascending: true })
+          .then((result) => (result.data as typeof rows) ?? []);
+
+    if (rowSet.length === 0) {
+      setError("Reservation not found");
+      setReservation(null);
+      return;
+    }
+
+    const primary = rowSet[0];
+    if (primary.customer_email !== currentUser.email) {
       setError("You do not have access to this reservation");
       setReservation(null);
       return;
     }
 
-    if (row.status !== "PENDING" && row.status !== "CONFIRMED") {
+    if (primary.status !== "PENDING" && primary.status !== "CONFIRMED") {
       setError("Chat is only available for active reservations");
       setReservation(null);
       return;
     }
 
     setError(null);
-    const events = row.cruise_events;
+    const events = primary.cruise_events;
     const cruiseEvent =
       Array.isArray(events) ? events[0] ?? null : events;
     setReservation({
-      id: row.id,
-      event_id: row.event_id,
-      cabin_id: row.cabin_id,
+      id: primary.id,
+      reservation_group_id: primary.reservation_group_id,
+      event_id: primary.event_id,
+      cabin_ids: rowSet.map((row) => row.cabin_id),
       cruise_events: cruiseEvent,
     });
   }, [id, currentUser?.email]);
 
-  const fetchMessages = useCallback(async (reservationId: number) => {
+  const fetchMessages = useCallback(async (reservationGroupId: string) => {
     const supabase = createSupabaseJsClient();
     const { data, error: fetchError } = await supabase
       .from("chat_messages")
       .select("*")
-      .eq("reservation_id", reservationId)
+      .eq("reservation_group_id", reservationGroupId)
       .order("created_at", { ascending: true });
 
     if (fetchError) {
@@ -123,18 +146,18 @@ export default function ReservationChat() {
 
   useEffect(() => {
     if (!reservation || !id) return;
-    fetchMessages(parseInt(id, 10));
+    fetchMessages(reservation.reservation_group_id);
 
     const supabase = createSupabaseJsClient();
     const channel = supabase
-      .channel(`chat-${id}`)
+      .channel(`chat-${reservation.reservation_group_id}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "chat_messages",
-          filter: `reservation_id=eq.${id}`,
+          filter: `reservation_group_id=eq.${reservation.reservation_group_id}`,
         },
         (payload) => {
           const msg = payload.new as ChatMessage;
@@ -148,10 +171,10 @@ export default function ReservationChat() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [reservation?.id, id, fetchMessages]);
+  }, [reservation, id, fetchMessages]);
 
   const handleSend = async () => {
-    if (!id || !currentUser || (!inputValue.trim() && pendingFiles.length === 0)) return;
+    if (!reservation || !id || !currentUser || (!inputValue.trim() && pendingFiles.length === 0)) return;
     setIsSending(true);
     const content = inputValue.trim();
     const senderName = currentUser.name || currentUser.email.split("@")[0];
@@ -163,7 +186,7 @@ export default function ReservationChat() {
       for (const file of pendingFiles) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        const filePath = `${id}/${fileName}`;
+        const filePath = `${reservation.reservation_group_id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('chat-images')
@@ -186,7 +209,8 @@ export default function ReservationChat() {
     const { data: newMsg, error: err } = await supabase
       .from("chat_messages")
       .insert({
-        reservation_id: parseInt(id, 10),
+        reservation_id: reservation.id,
+        reservation_group_id: reservation.reservation_group_id,
         sender_id: currentUser.id,
         sender_role: "client",
         sender_name: senderName,
@@ -317,7 +341,7 @@ export default function ReservationChat() {
             <h2 className="font-semibold">Chat Support</h2>
             <p className="text-sm text-muted-foreground">
               {reservation.cruise_events?.name ?? `Event #${reservation.event_id}`} • Cabin{" "}
-              {reservation.cabin_id}
+              {reservation.cabin_ids.join(", ")}
             </p>
           </div>
           <ScrollArea className="h-[400px] p-4">

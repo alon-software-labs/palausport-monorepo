@@ -3,7 +3,6 @@
 import { AppSidebar } from '@/components/app-sidebar';
 import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 import { SidebarTrigger, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { Navbar } from '@/components/navbar';
 import { ProtectedRoute } from '@/components/protected-route';
 
 export function AuthenticatedLayout({
@@ -25,7 +24,6 @@ export function AuthenticatedLayout({
                             <div className="flex items-center gap-2">
                                 <SidebarTrigger className="-ml-1" />
                             </div>
-                            <Navbar />
                         </header>
 
                         {/* Mobile top bar */}
@@ -38,7 +36,6 @@ export function AuthenticatedLayout({
                                 </div>
                                 <span className="font-bold text-base tracking-tight text-foreground">PalauSport</span>
                             </div>
-                            <Navbar />
                         </header>
 
                         {/* Page content — extra bottom padding on mobile for bottom nav */}

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useAppContext } from '@/lib/context';
 import { StatsCard } from '@/components/stats-card';
 import { Button } from '@/components/ui/button';
@@ -19,9 +20,18 @@ import Link from 'next/link';
 export default function DashboardPage() {
   const { events, reservations, isLoading, error } = useAppContext();
 
-  const totalPassengers = reservations
-    .filter(r => r.status === 'CONFIRMED')
-    .reduce((sum, r) => sum + r.totalGuests, 0);
+  const confirmedBookings = useMemo(() => {
+    const byGroup = new Map<string, typeof reservations[number]>();
+    reservations
+      .filter((r) => r.status === 'CONFIRMED')
+      .forEach((row) => {
+        const groupId = row.reservationGroupId || `legacy-${row.id}`;
+        if (!byGroup.has(groupId)) byGroup.set(groupId, row);
+      });
+    return Array.from(byGroup.values());
+  }, [reservations]);
+
+  const totalPassengers = confirmedBookings.reduce((sum, r) => sum + r.totalGuests, 0);
   const totalCapacity = 22;
   const capacityPercentage = totalPassengers > 0 ? Math.round((totalPassengers / totalCapacity) * 100) : 0;
   const recentReservations = reservations.slice(-5).reverse();
@@ -67,9 +77,9 @@ export default function DashboardPage() {
           icon={<CalendarDays className="size-5" />}
         />
         <StatsCard
-          title="Total Reservations"
-          value={reservations.length}
-          description="Confirmed bookings"
+          title="Total Bookings"
+          value={confirmedBookings.length}
+          description="Confirmed booking groups"
           icon={<FileText className="size-5" />}
         />
         <StatsCard

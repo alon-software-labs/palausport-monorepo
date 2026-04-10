@@ -18,6 +18,7 @@ export interface Passenger {
 
 export interface Reservation {
   id: string;
+  reservationGroupId: string;
   eventId: string;
   cabinId: string;
   cabinType: CabinType;
@@ -31,6 +32,25 @@ export interface Reservation {
   notes?: string;
   createdAt: string;
   invoiceGenerated?: boolean;
+}
+
+export interface ReservationGroup {
+  id: string;
+  primaryReservationId: string;
+  reservationIds: string[];
+  eventId: string;
+  cabinIds: string[];
+  cabinTypes: CabinType[];
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  passengers: Passenger[];
+  status: ReservationStatus;
+  totalGuests: number;
+  totalPrice: number;
+  notes?: string;
+  createdAt: string;
+  invoiceGenerated: boolean;
 }
 
 export interface Cabin {
