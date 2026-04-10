@@ -4,6 +4,7 @@ import * as React from 'react';
 import {
     LayoutDashboard,
     CalendarDays,
+    Calendar,
     FileText,
     MessageSquare,
     Settings,
@@ -46,6 +47,11 @@ const items = [
         title: 'Reservations',
         url: '/reservations',
         icon: CalendarDays,
+    },
+    {
+        title: 'Events',
+        url: '/events',
+        icon: Calendar,
     },
     {
         title: 'Clients',
