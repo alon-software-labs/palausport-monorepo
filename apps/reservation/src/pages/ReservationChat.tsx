@@ -15,6 +15,7 @@ import {
   validateChatReservationRows,
   type ReservationChatLookupRow,
 } from "@/lib/reservation-grouping";
+import { toast } from "sonner";
 
 interface ChatMessage {
   id: number;
@@ -231,6 +232,9 @@ export default function ReservationChat() {
           .upload(filePath, file);
 
         if (uploadError) {
+          toast.error(`Failed to upload ${file.name}`, {
+            description: uploadError.message,
+          });
           continue;
         }
 
@@ -242,6 +246,12 @@ export default function ReservationChat() {
           uploadedUrls.push(publicUrlData.publicUrl);
         }
       }
+    }
+
+    if (pendingFiles.length > 0 && uploadedUrls.length === 0) {
+      setIsSending(false);
+      toast.error("Could not upload images. Please try again.");
+      return;
     }
 
     const { data: newMsg, error: err } = await supabase
@@ -259,7 +269,11 @@ export default function ReservationChat() {
       .single();
       
     setIsSending(false);
-    if (!err && newMsg) {
+    if (err) {
+      toast.error("Could not send message", { description: err.message });
+      return;
+    }
+    if (newMsg) {
       setInputValue("");
       setPendingFiles([]);
       setMessages((prev) => prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg as ChatMessage]);
