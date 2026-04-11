@@ -1,7 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useAppContext } from '@/lib/context';
-import { StatsCard } from '@/components/stats-card';
+import { KpiCard } from '@/components/kpi-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -19,9 +20,18 @@ import Link from 'next/link';
 export default function DashboardPage() {
   const { events, reservations, isLoading, error } = useAppContext();
 
-  const totalPassengers = reservations
-    .filter(r => r.status === 'CONFIRMED')
-    .reduce((sum, r) => sum + r.totalGuests, 0);
+  const confirmedBookings = useMemo(() => {
+    const byGroup = new Map<string, typeof reservations[number]>();
+    reservations
+      .filter((r) => r.status === 'CONFIRMED')
+      .forEach((row) => {
+        const groupId = row.reservationGroupId || `legacy-${row.id}`;
+        if (!byGroup.has(groupId)) byGroup.set(groupId, row);
+      });
+    return Array.from(byGroup.values());
+  }, [reservations]);
+
+  const totalPassengers = confirmedBookings.reduce((sum, r) => sum + r.totalGuests, 0);
   const totalCapacity = 22;
   const capacityPercentage = totalPassengers > 0 ? Math.round((totalPassengers / totalCapacity) * 100) : 0;
   const recentReservations = reservations.slice(-5).reverse();
@@ -35,7 +45,7 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,3vw,1.5rem)]">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-28 bg-muted/50 rounded-xl animate-pulse" />
+            <div key={i} className="min-h-[7.5rem] h-full bg-muted/50 rounded-xl animate-pulse" />
           ))}
         </div>
         <div className="h-48 bg-muted/30 rounded-xl animate-pulse" />
@@ -59,27 +69,27 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-0.5">Overview of reservations and capacity</p>
       </div>
 
-      <div className="grid grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,3vw,1.5rem)]">
-        <StatsCard
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-4 gap-[clamp(1rem,3vw,1.5rem)] items-stretch">
+        <KpiCard
           title="Total Events"
           value={events.length}
           description="Active cruise events"
           icon={<CalendarDays className="size-5" />}
         />
-        <StatsCard
-          title="Total Reservations"
-          value={reservations.length}
-          description="Confirmed bookings"
+        <KpiCard
+          title="Total Bookings"
+          value={confirmedBookings.length}
+          description="Confirmed booking groups"
           icon={<FileText className="size-5" />}
         />
-        <StatsCard
+        <KpiCard
           title="Total Passengers"
           value={totalPassengers}
           description={`${totalPassengers} / ${totalCapacity} capacity`}
           icon={<Users className="size-5" />}
           variant="primary"
         />
-        <StatsCard
+        <KpiCard
           title="Capacity Used"
           value={`${capacityPercentage}%`}
           description="Current boat occupancy"

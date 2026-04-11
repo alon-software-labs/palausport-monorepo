@@ -5,6 +5,7 @@ import { jwtDecode } from 'jwt-decode';
 import {
   CruiseEvent,
   Reservation,
+  ReservationGroup,
   Invoice,
   User,
   Client,
@@ -52,6 +53,7 @@ interface DbCruiseEvent {
 
 interface DbReservation {
   id: number;
+  reservation_group_id: string;
   event_id: number;
   cabin_id: string;
   cabin_type: CabinType;
@@ -94,6 +96,7 @@ function mapEvent(row: DbCruiseEvent): CruiseEvent {
 function mapReservation(row: DbReservation): Reservation {
   return {
     id: String(row.id),
+    reservationGroupId: row.reservation_group_id ?? `legacy-${row.id}`,
     eventId: String(row.event_id),
     cabinId: row.cabin_id,
     cabinType: row.cabin_type,
@@ -108,6 +111,44 @@ function mapReservation(row: DbReservation): Reservation {
     createdAt: row.created_at,
     invoiceGenerated: row.invoice_generated,
   };
+}
+
+function buildReservationGroups(reservations: Reservation[]): ReservationGroup[] {
+  const groups = new Map<string, Reservation[]>();
+  for (const reservation of reservations) {
+    const groupId = reservation.reservationGroupId || `legacy-${reservation.id}`;
+    const list = groups.get(groupId) ?? [];
+    list.push(reservation);
+    groups.set(groupId, list);
+  }
+
+  return Array.from(groups.entries()).map(([id, rows]) => {
+    const sortedRows = [...rows].sort((a, b) => {
+      const aId = Number.parseInt(a.id, 10);
+      const bId = Number.parseInt(b.id, 10);
+      if (Number.isNaN(aId) || Number.isNaN(bId)) return a.id.localeCompare(b.id);
+      return aId - bId;
+    });
+    const primary = sortedRows[0];
+    return {
+      id,
+      primaryReservationId: primary.id,
+      reservationIds: sortedRows.map((r) => r.id),
+      eventId: primary.eventId,
+      cabinIds: sortedRows.map((r) => r.cabinId),
+      cabinTypes: sortedRows.map((r) => r.cabinType),
+      customerName: primary.customerName,
+      customerEmail: primary.customerEmail,
+      customerPhone: primary.customerPhone,
+      passengers: primary.passengers,
+      status: primary.status,
+      totalGuests: primary.totalGuests,
+      totalPrice: primary.totalPrice,
+      notes: primary.notes,
+      createdAt: primary.createdAt,
+      invoiceGenerated: sortedRows.every((r) => Boolean(r.invoiceGenerated)),
+    };
+  });
 }
 
 function mapInvoice(row: DbInvoice): Invoice {
@@ -131,6 +172,7 @@ interface AppContextType {
   authReady: boolean;
   events: CruiseEvent[];
   reservations: Reservation[];
+  reservationGroups: ReservationGroup[];
   invoices: Invoice[];
   clients: Client[];
   isLoading: boolean;
@@ -145,6 +187,7 @@ interface AppContextType {
   getInvoicesByReservation: (reservationId: string) => Invoice[];
   getEvent: (eventId: string) => CruiseEvent | undefined;
   getReservationsByEvent: (eventId: string) => Reservation[];
+  getReservationGroupByReservationId: (reservationId: string) => ReservationGroup | undefined;
   getTopClients: (n: number) => Client[];
   refetch: () => Promise<void>;
   fetchClientsPaginated: (props: {
@@ -164,6 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
   const [events, setEvents] = useState<CruiseEvent[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservationGroups, setReservationGroups] = useState<ReservationGroup[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,15 +239,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const reservationRows = (reservationsRes.data as DbReservation[]) ?? [];
     const mappedReservations = reservationRows.map(mapReservation);
-    const mappedEvents = (eventsRes.data as DbCruiseEvent[]).map((row) => {
-      const event = mapEvent(row);
-      event.currentBookings = mappedReservations
-        .filter((r) => r.eventId === event.id && r.status === 'CONFIRMED')
-        .reduce((sum, r) => sum + r.totalGuests, 0);
-      return event;
-    });
+    const groupedReservations = buildReservationGroups(mappedReservations);
+    const mappedEvents = (eventsRes.data as DbCruiseEvent[]).map(mapEvent);
     setEvents(mappedEvents);
     setReservations(mappedReservations);
+    setReservationGroups(groupedReservations);
     setInvoices((invoicesRes.data as DbInvoice[]).map(mapInvoice));
 
     // Build client list from user_roles + cross-reference reservation data
@@ -230,7 +270,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Additionally, create client entries from unique reservation emails
     // (this ensures every booker is represented even if their user_role entry exists)
     const uniqueEmailClients = new Map<string, Client>();
-    mappedReservations.forEach((r) => {
+    groupedReservations.forEach((r) => {
       const key = r.customerEmail.toLowerCase();
       if (!uniqueEmailClients.has(key)) {
         uniqueEmailClients.set(key, {
@@ -243,7 +283,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       }
       const client = uniqueEmailClients.get(key)!;
-      client.reservations.push(r);
+      client.reservations.push({
+        id: r.primaryReservationId,
+        reservationGroupId: r.id,
+        eventId: r.eventId,
+        cabinId: r.cabinIds.join(', '),
+        cabinType: r.cabinTypes[0],
+        customerName: r.customerName,
+        customerEmail: r.customerEmail,
+        customerPhone: r.customerPhone,
+        passengers: r.passengers,
+        status: r.status,
+        totalGuests: r.totalGuests,
+        totalPrice: r.totalPrice,
+        notes: r.notes,
+        createdAt: r.createdAt,
+        invoiceGenerated: r.invoiceGenerated,
+      });
       client.totalSpent += r.totalPrice;
       client.totalBookings += 1;
     });
@@ -297,6 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       queueMicrotask(() => {
         setEvents([]);
         setReservations([]);
+        setReservationGroups([]);
         setInvoices([]);
         setIsLoading(false);
       });
@@ -384,12 +441,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const eventId = parseInt(reservation.eventId, 10);
     if (isNaN(eventId)) return { success: false, error: 'Invalid event ID' };
 
+    const targetIds = reservations
+      .filter((row) => row.reservationGroupId === reservation.reservationGroupId)
+      .map((row) => Number.parseInt(row.id, 10))
+      .filter((value) => !Number.isNaN(value));
+    const ids = targetIds.length > 0 ? targetIds : [id];
+
     const { error } = await supabase
       .from('reservations')
       .update({
         event_id: eventId,
-        cabin_id: reservation.cabinId,
-        cabin_type: reservation.cabinType,
         customer_name: reservation.customerName,
         customer_email: reservation.customerEmail,
         customer_phone: reservation.customerPhone,
@@ -400,7 +461,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notes: reservation.notes ?? null,
         invoice_generated: reservation.invoiceGenerated ?? false,
       })
-      .eq('id', id);
+      .in('id', ids);
 
     if (error) return { success: false, error: error.message };
     await fetchData();
@@ -411,8 +472,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const supabase = createNextBrowserSupabaseClient();
     const numId = parseInt(id, 10);
     if (isNaN(numId)) return { success: false, error: 'Invalid reservation ID' };
+    const reservation = reservations.find((row) => row.id === id);
+    const targetIds = reservation
+      ? reservations
+          .filter((row) => row.reservationGroupId === reservation.reservationGroupId)
+          .map((row) => Number.parseInt(row.id, 10))
+          .filter((value) => !Number.isNaN(value))
+      : [];
+    const ids = targetIds.length > 0 ? targetIds : [numId];
 
-    const { error } = await supabase.from('reservations').delete().eq('id', numId);
+    const { error } = await supabase.from('reservations').delete().in('id', ids);
     if (error) return { success: false, error: error.message };
     await fetchData();
     return { success: true };
@@ -423,13 +492,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!reservation) return null;
 
     const supabase = createNextBrowserSupabaseClient();
-    const resId = parseInt(reservationId, 10);
-    if (isNaN(resId)) return null;
+    const groupReservations = reservations
+      .filter((row) => row.reservationGroupId === reservation.reservationGroupId)
+      .sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
+    const parsedIds = groupReservations
+      .map((row) => Number.parseInt(row.id, 10))
+      .filter((value) => !Number.isNaN(value));
+    if (parsedIds.length === 0) return null;
+    const primaryReservationId = parsedIds[0];
+
+    const { data: existingInvoice } = await supabase
+      .from('invoices')
+      .select('*')
+      .in('reservation_id', parsedIds)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingInvoice) {
+      await supabase
+        .from('reservations')
+        .update({ invoice_generated: true })
+        .in('id', parsedIds);
+      await fetchData();
+      return mapInvoice(existingInvoice as DbInvoice);
+    }
 
     const { data: invoiceRow, error } = await supabase
       .from('invoices')
       .insert({
-        reservation_id: resId,
+        reservation_id: primaryReservationId,
         customer_name: reservation.customerName,
         customer_email: reservation.customerEmail,
         total_guests: reservation.totalGuests,
@@ -445,7 +537,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await supabase
       .from('reservations')
       .update({ invoice_generated: true })
-      .eq('id', resId);
+      .in('id', parsedIds);
 
     await fetchData();
 
@@ -453,11 +545,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const getInvoicesByReservation = (reservationId: string): Invoice[] => {
-    return invoices.filter(i => i.reservationId === reservationId);
+    const reservation = reservations.find((row) => row.id === reservationId);
+    if (!reservation) return invoices.filter(i => i.reservationId === reservationId);
+    const groupReservationIds = new Set(
+      reservations
+        .filter((row) => row.reservationGroupId === reservation.reservationGroupId)
+        .map((row) => row.id)
+    );
+    return invoices.filter((invoice) => groupReservationIds.has(invoice.reservationId));
   };
 
   const getEvent = (eventId: string) => events.find(e => e.id === eventId);
   const getReservationsByEvent = (eventId: string) => reservations.filter(r => r.eventId === eventId);
+  const getReservationGroupByReservationId = (reservationId: string) => {
+    const reservation = reservations.find((row) => row.id === reservationId);
+    if (!reservation) return undefined;
+    return reservationGroups.find((group) => group.id === reservation.reservationGroupId);
+  };
   const getTopClients = (n: number): Client[] =>
     [...clients]
       .sort((a, b) => b.totalBookings - a.totalBookings || b.totalSpent - a.totalSpent)
@@ -513,6 +617,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       totalBookings: Number(row.total_bookings) || 0,
       reservations: (row.reservations || []).map((r: any) => ({
         id: r.id,
+        reservationGroupId: r.reservationGroupId ?? `legacy-${r.id}`,
         eventId: r.eventId,
         cabinId: r.cabinId,
         cabinType: r.cabinType,
@@ -536,6 +641,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     authReady,
     events,
     reservations,
+    reservationGroups,
     invoices,
     clients,
     isLoading,
@@ -550,6 +656,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getInvoicesByReservation,
     getEvent,
     getReservationsByEvent,
+    getReservationGroupByReservationId,
     getTopClients,
     refetch: fetchData,
     fetchClientsPaginated,

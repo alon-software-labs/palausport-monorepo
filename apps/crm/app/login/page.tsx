@@ -58,7 +58,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="Enter email"
               />
             </div>
             <div className="space-y-2">
@@ -68,7 +68,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter password"
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>

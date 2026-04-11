@@ -14,25 +14,23 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  CreditCard, 
-  Calendar, 
-  Ship, 
-  Users, 
-  CheckCircle,
+import {
+  User,
+  Mail,
+  Phone,
+  CreditCard,
+  Calendar,
+  Ship,
+  Users,
   Clock,
   Briefcase,
   AlertCircle,
   FileText,
   Download,
   ShieldCheck,
-  Baby,
   Activity,
   CreditCard as PriceIcon,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,11 +46,20 @@ export function ReservationModal({
   onClose,
   onGenerateInvoice,
 }: ReservationModalProps) {
-  const { generateInvoice, getInvoicesByReservation, getEvent } = useAppContext();
+  const { generateInvoice, getInvoicesByReservation, getEvent, getReservationGroupByReservationId } =
+    useAppContext();
   const event = reservation ? getEvent(reservation.eventId) : null;
+  const reservationGroup = reservation ? getReservationGroupByReservationId(reservation.id) : undefined;
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingPasses, setIsDownloadingPasses] = useState(false);
+
+  const cabinTypesDisplay =
+    reservationGroup?.cabinTypes.map((t) => t.replace('_', ' ')).join(', ') ??
+    reservation?.cabinType?.replace('_', ' ');
+  const invoiceReady = Boolean(
+    reservationGroup?.invoiceGenerated || reservation?.invoiceGenerated
+  );
 
   const handleGenerateInvoice = async () => {
     if (!reservation) return;
@@ -100,10 +107,12 @@ export function ReservationModal({
             </div>
             <div>
               <DialogTitle className="text-xl font-bold tracking-tight">
-                {event ? `${event.destination} - ${event.name}` : 'Reservation Details'}
+                {event
+                  ? `${event.destination} - ${event.name}${cabinTypesDisplay ? ` | ${cabinTypesDisplay}` : ''}`
+                  : 'Reservation Details'}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest mt-0.5">
-                ID: {reservation?.id} • {reservation?.cabinType?.replace('_', ' ')}
+                Booking Ref: {reservationGroup?.id ?? reservation?.reservationGroupId}
               </DialogDescription>
             </div>
           </div>
@@ -126,10 +135,23 @@ export function ReservationModal({
               <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <SectionHeader icon={Briefcase} title="Booking" />
                 <div className="grid grid-cols-2 gap-4">
-                  <InfoItem icon={Ship} label="Cabin" value={reservation?.cabinType} />
+                  <InfoItem icon={Ship} label="Cabin type" value={reservation?.cabinType} />
+                  <InfoItem
+                    icon={Ship}
+                    label="Cabin units"
+                    value={reservationGroup?.cabinIds.join(', ') ?? reservation?.cabinId}
+                  />
                   <InfoItem icon={Users} label="Guests" value={reservation?.totalGuests} />
-                  <InfoItem icon={PriceIcon} label="Total" value={reservation ? `$${reservation.totalPrice.toLocaleString()}` : ''} />
-                  <InfoItem icon={Calendar} label="Booked" value={reservation ? new Date(reservation.createdAt).toLocaleDateString() : ''} />
+                  <InfoItem
+                    icon={PriceIcon}
+                    label="Total"
+                    value={reservation ? `$${reservation.totalPrice.toLocaleString()}` : ''}
+                  />
+                  <InfoItem
+                    icon={Calendar}
+                    label="Booked"
+                    value={reservation ? new Date(reservation.createdAt).toLocaleDateString() : ''}
+                  />
                 </div>
               </section>
 
@@ -142,43 +164,47 @@ export function ReservationModal({
                 </section>
               )}
 
-                <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t border-border/80">
-                  <SectionHeader icon={Activity} title="Actions" />
-                  <div className="flex flex-col gap-2">
-                    {!reservation?.invoiceGenerated ? (
+              <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t border-border/80">
+                <SectionHeader icon={Activity} title="Actions" />
+                <div className="flex flex-col gap-2">
+                  {!invoiceReady ? (
+                    <Button
+                      onClick={handleGenerateInvoice}
+                      disabled={isGenerating}
+                      className="w-full justify-center gap-2 h-9 text-xs transition-all duration-300 shadow-sm"
+                      variant="default"
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <CreditCard className="size-3" />
+                      )}
+                      {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                    </Button>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
                       <Button
-                        onClick={handleGenerateInvoice}
-                        disabled={isGenerating}
-                        className="w-full justify-center gap-2 h-9 text-xs transition-all duration-300 shadow-sm"
-                        variant="default"
+                        onClick={handleDownloadInvoice}
+                        disabled={isDownloading}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 h-8 text-[11px] justify-center bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100 transition-all duration-300"
                       >
-                        {isGenerating ? <Loader2 className="size-3 animate-spin" /> : <CreditCard className="size-3" />}
-                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                        <Download className="size-3" /> Invoice
                       </Button>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
-                        <Button 
-                          onClick={handleDownloadInvoice} 
-                          disabled={isDownloading} 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-2 h-8 text-[11px] justify-center bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100 transition-all duration-300"
-                        >
-                          <Download className="size-3" /> Invoice
-                        </Button>
-                        <Button 
-                          onClick={handleDownloadPasses} 
-                          disabled={isDownloadingPasses} 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-2 h-8 text-[11px] justify-center bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-all duration-300"
-                        >
-                          <FileText className="size-3" /> Passes
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </section>
+                      <Button
+                        onClick={handleDownloadPasses}
+                        disabled={isDownloadingPasses}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 h-8 text-[11px] justify-center bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-all duration-300"
+                      >
+                        <FileText className="size-3" /> Passes
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
 
             {/* Right Column: Guests List */}
@@ -186,7 +212,10 @@ export function ReservationModal({
               <SectionHeader icon={Users} title="Registered Guests" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {reservation?.passengers.map((passenger: any, index: number) => (
-                  <div key={passenger.id} className="group relative bg-background border border-border/60 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+                  <div
+                    key={passenger.id}
+                    className="group relative bg-background border border-border/60 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300"
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="bg-muted p-1.5 rounded-lg group-hover:bg-primary/10 transition-colors">
@@ -205,22 +234,33 @@ export function ReservationModal({
                       <InfoItem icon={Ship} label="Cabin" value={passenger.cabinType?.replace('_', ' ')} />
                       <InfoItem icon={Phone} label="Phone" value={passenger.phone} className="col-span-2" />
                       <div className="flex flex-col gap-1">
-                         <div className="flex items-center gap-1.5">
-                           <AlertCircle className="size-3 text-destructive/70" />
-                           <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">Allergies</span>
-                         </div>
-                         <p className={cn("text-xs font-semibold", passenger.foodAllergies && passenger.foodAllergies !== 'None' ? 'text-destructive' : 'text-muted-foreground/60 italic')}>
-                           {passenger.foodAllergies || 'None'}
-                         </p>
+                        <div className="flex items-center gap-1.5">
+                          <AlertCircle className="size-3 text-destructive/70" />
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                            Allergies
+                          </span>
+                        </div>
+                        <p
+                          className={cn(
+                            'text-xs font-semibold',
+                            passenger.foodAllergies && passenger.foodAllergies !== 'None'
+                              ? 'text-destructive'
+                              : 'text-muted-foreground/60 italic'
+                          )}
+                        >
+                          {passenger.foodAllergies || 'None'}
+                        </p>
                       </div>
-                      { (passenger.danId || passenger.buyDanInsurance) && (
-                         <div className="col-span-3 mt-1 p-2 bg-muted/30 rounded-lg flex items-center gap-2 border border-border/40">
-                            <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">DAN:</span>
-                            <span className="text-[10px] font-mono font-bold text-emerald-600">
-                              {passenger.danId ? `ID: ${passenger.danId}` : 'Palau Sport Insurance'}
-                            </span>
-                         </div>
+                      {(passenger.danId || passenger.buyDanInsurance) && (
+                        <div className="col-span-3 mt-1 p-2 bg-muted/30 rounded-lg flex items-center gap-2 border border-border/40">
+                          <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">
+                            DAN:
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-emerald-600">
+                            {passenger.danId ? `ID: ${passenger.danId}` : 'Palau Sport Insurance'}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -240,16 +280,14 @@ function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
       <div className="bg-primary/10 p-1.5 rounded-lg">
         <Icon className="size-3.5 text-primary" />
       </div>
-      <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">
-        {title}
-      </h3>
+      <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">{title}</h3>
     </div>
-  )
+  );
 }
 
 function InfoItem({ icon: Icon, label, value, className }: { icon?: any; label: string; value: any; className?: string }) {
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    <div className={cn('flex flex-col gap-1', className)}>
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="size-3 text-muted-foreground/60" />}
         <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">{label}</span>
@@ -263,10 +301,10 @@ function InfoItem({ icon: Icon, label, value, className }: { icon?: any; label: 
 
 function StatusItem({ label, value, className }: { label: string; value: any; className?: string }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">{label}</span>
-      <Badge 
-        variant={value === 'CONFIRMED' || value === 'Invoice' ? 'default' : 'secondary'} 
+      <Badge
+        variant={value === 'CONFIRMED' || value === 'Invoice' ? 'default' : 'secondary'}
         className="w-fit text-[10px] h-5 px-2 font-bold tracking-wide transition-all"
       >
         {value}

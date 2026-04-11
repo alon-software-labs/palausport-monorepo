@@ -78,7 +78,25 @@ export default function ReservationsPage() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const eventReservations = useMemo(() => {
-    let filtered = reservations.filter(r => r.eventId === selectedEventId);
+    const grouped = new Map<string, Reservation[]>();
+    reservations
+      .filter((r) => r.eventId === selectedEventId)
+      .forEach((row) => {
+        const groupId = row.reservationGroupId || `legacy-${row.id}`;
+        const list = grouped.get(groupId) ?? [];
+        list.push(row);
+        grouped.set(groupId, list);
+      });
+
+    let filtered = Array.from(grouped.values()).map((rows) => {
+      const sortedRows = [...rows].sort((a, b) => Number.parseInt(a.id, 10) - Number.parseInt(b.id, 10));
+      const primary = sortedRows[0];
+      return {
+        ...primary,
+        cabinId: sortedRows.map((r) => r.cabinId).join(', '),
+        invoiceGenerated: sortedRows.every((r) => Boolean(r.invoiceGenerated)),
+      };
+    });
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -238,7 +256,7 @@ export default function ReservationsPage() {
         <CardHeader>
           <CardTitle className="text-base">Reservations</CardTitle>
           <CardDescription>
-            {eventReservations.length} reservation{eventReservations.length !== 1 ? 's' : ''} found
+            {eventReservations.length} booking{eventReservations.length !== 1 ? 's' : ''} found
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -251,15 +269,17 @@ export default function ReservationsPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <>              {/* Desktop Table View */}
+            <>
+              {/* Desktop Table View */}
               <div className="hidden sm:block border rounded-lg overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       <TableHead>Guests</TableHead>
-                      <TableHead>Cabin</TableHead>
+                      <TableHead>Cabins</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="w-[100px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -283,21 +303,35 @@ export default function ReservationsPage() {
                         <TableCell className="font-mono tabular-nums text-sm font-semibold">
                           {reservation.totalGuests}
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm font-medium">{reservation.cabinType}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm font-medium">
+                          {reservation.cabinId}
+                        </TableCell>
                         <TableCell>
-                          <Badge 
+                          <Badge
                             variant={reservation.invoiceGenerated ? 'default' : 'secondary'}
                             className="text-[10px] font-bold"
                           >
                             {reservation.invoiceGenerated ? 'Invoice' : 'Pending'}
                           </Badge>
                         </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {reservation.invoiceGenerated && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => handleDownloadInvoice(e, reservation)}
+                              disabled={isDownloading}
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
- 
+
               {/* Mobile List View */}
               <div className="sm:hidden -mx-4">
                 <ItemGroup>
@@ -333,7 +367,7 @@ export default function ReservationsPage() {
                             <div className="w-px h-3 bg-border/60" />
                             <div className="flex items-center gap-1.5">
                               <Ship className="size-3" />
-                              <span className="font-medium">{reservation.cabinType}</span>
+                              <span className="font-medium">{reservation.cabinId}</span>
                             </div>
                           </div>
                         </ItemContent>

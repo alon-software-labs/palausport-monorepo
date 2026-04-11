@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '@/lib/context';
 import { Client, Reservation } from '@/lib/types';
+import { KpiCard } from '@/components/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -229,46 +230,25 @@ export default function ClientsPage() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)]">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Clients</p>
-                <p className="text-2xl font-bold mt-1">{clients.length}</p>
-              </div>
-              <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Users className="size-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Bookings</p>
-                <p className="text-2xl font-bold mt-1">{totalBookings}</p>
-              </div>
-              <div className="size-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <TrendingUp className="size-5 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold mt-1">${totalRevenue.toFixed(2)}</p>
-              </div>
-              <div className="size-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <DollarSign className="size-5 text-green-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)] items-stretch">
+        <KpiCard
+          title="Total Clients"
+          value={clients.length}
+          icon={<Users />}
+          iconAccent="primary"
+        />
+        <KpiCard
+          title="Total Bookings"
+          value={totalBookings}
+          icon={<TrendingUp />}
+          iconAccent="blue"
+        />
+        <KpiCard
+          title="Total Revenue"
+          value={`$${totalRevenue.toFixed(2)}`}
+          icon={<DollarSign />}
+          iconAccent="green"
+        />
       </div>
 
       {/* Top 5 Mini Dashboard */}

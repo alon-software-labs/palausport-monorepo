@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { List, Plus } from "lucide-react";
@@ -9,8 +9,6 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const { logout } = useAuth();
-  const location = useLocation();
-  const isChatPage = /^\/reservations\/\d+\/chat$/.test(location.pathname);
 
   return (
     <nav className="flex flex-wrap justify-between items-center gap-x-3 gap-y-1 px-4 py-2 border-b bg-background/80">
