@@ -14,6 +14,28 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  User, 
+  Mail, 
+  Phone, 
+  CreditCard, 
+  Calendar, 
+  Ship, 
+  Users, 
+  CheckCircle,
+  Clock,
+  Briefcase,
+  AlertCircle,
+  FileText,
+  Download,
+  ShieldCheck,
+  Baby,
+  Activity,
+  CreditCard as PriceIcon,
+  Loader2
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface ReservationModalProps {
   reservation: Reservation | null;
@@ -70,154 +92,141 @@ export function ReservationModal({
 
   return (
     <Dialog open={!!reservation} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-xl font-semibold tracking-tight">
-            {event ? `${event.destination} - ${event.name} | ${reservation?.cabinType?.replace('_', ' ')}` : 'Reservation Details'}
-          </DialogTitle>
-          <DialogDescription className="text-muted-foreground font-mono text-xs">
-            Reservation ID: {reservation?.id}
-          </DialogDescription>
+      <DialogContent className="max-w-md sm:max-w-5xl p-0 overflow-hidden bg-background">
+        <DialogHeader className="p-6 pb-4 border-b bg-muted/20">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 p-2 rounded-xl">
+              <Ship className="size-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {event ? `${event.destination} - ${event.name}` : 'Reservation Details'}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest mt-0.5">
+                ID: {reservation?.id} • {reservation?.cabinType?.replace('_', ' ')}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[82vh] p-6 pt-4">
-          <div className="space-y-8">
-            <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
-                Customer Information
-              </h3>
-              <div className="grid grid-cols-2 gap-6 text-sm">
-                <InfoItem label="Name" value={reservation?.customerName} />
-                <InfoItem label="Email" value={reservation?.customerEmail} />
-                <InfoItem label="Phone" value={reservation?.customerPhone} />
-                <StatusItem label="Status" value={reservation?.status} />
-              </div>
-            </section>
+        <ScrollArea className="max-h-[82vh]">
+          <div className="grid grid-cols-1 sm:grid-cols-[350px_1fr] divide-y sm:divide-y-0 sm:divide-x border-b">
+            {/* Left Column: Core Info & Actions */}
+            <div className="bg-muted/10 p-6 space-y-8 h-full">
+              <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <SectionHeader icon={User} title="Customer" />
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+                  <InfoItem icon={User} label="Name" value={reservation?.customerName} />
+                  <StatusItem label="Status" value={reservation?.status} />
+                  <InfoItem icon={Mail} label="Email Address" value={reservation?.customerEmail} />
+                  <InfoItem icon={Phone} label="Contact Phone" value={reservation?.customerPhone} />
+                </div>
+              </section>
 
-            <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
-                Reservation Details
-              </h3>
-              <div className="grid grid-cols-2 gap-6 text-sm">
-                <InfoItem label="Cabin Type" value={reservation?.cabinType} />
-                <InfoItem label="Total Guests" value={reservation?.totalGuests} />
-                <InfoItem
-                  label="Total Price"
-                  value={reservation ? `$${reservation.totalPrice.toFixed(2)}` : ''}
-                />
-                <InfoItem
-                  label="Created"
-                  value={reservation ? new Date(reservation.createdAt).toLocaleDateString() : ''}
-                />
-              </div>
-            </section>
+              <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <SectionHeader icon={Briefcase} title="Booking" />
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoItem icon={Ship} label="Cabin" value={reservation?.cabinType} />
+                  <InfoItem icon={Users} label="Guests" value={reservation?.totalGuests} />
+                  <InfoItem icon={PriceIcon} label="Total" value={reservation ? `$${reservation.totalPrice.toLocaleString()}` : ''} />
+                  <InfoItem icon={Calendar} label="Booked" value={reservation ? new Date(reservation.createdAt).toLocaleDateString() : ''} />
+                </div>
+              </section>
 
-            <section className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-              <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
-                Guests
-              </h3>
-              <div className="space-y-3">
+              {reservation?.notes && (
+                <section className="animate-in fade-in slide-in-from-bottom-2 duration-700">
+                  <SectionHeader icon={FileText} title="Notes" />
+                  <p className="text-xs text-muted-foreground leading-relaxed italic bg-background/50 p-3 rounded-lg border border-border/40">
+                    &quot;{reservation.notes}&quot;
+                  </p>
+                </section>
+              )}
+
+                <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t border-border/80">
+                  <SectionHeader icon={Activity} title="Actions" />
+                  <div className="flex flex-col gap-2">
+                    {!reservation?.invoiceGenerated ? (
+                      <Button
+                        onClick={handleGenerateInvoice}
+                        disabled={isGenerating}
+                        className="w-full justify-center gap-2 h-9 text-xs transition-all duration-300 shadow-sm"
+                        variant="default"
+                      >
+                        {isGenerating ? <Loader2 className="size-3 animate-spin" /> : <CreditCard className="size-3" />}
+                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                      </Button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
+                        <Button 
+                          onClick={handleDownloadInvoice} 
+                          disabled={isDownloading} 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-2 h-8 text-[11px] justify-center bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100 transition-all duration-300"
+                        >
+                          <Download className="size-3" /> Invoice
+                        </Button>
+                        <Button 
+                          onClick={handleDownloadPasses} 
+                          disabled={isDownloadingPasses} 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-2 h-8 text-[11px] justify-center bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-all duration-300"
+                        >
+                          <FileText className="size-3" /> Passes
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+            </div>
+
+            {/* Right Column: Guests List */}
+            <div className="p-6 space-y-6">
+              <SectionHeader icon={Users} title="Registered Guests" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {reservation?.passengers.map((passenger: any, index: number) => (
-                  <div key={passenger.id} className="bg-muted/30 border border-border/60 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                      <div className="font-semibold text-sm text-foreground">{passenger.fullName}</div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10">
-                        Guest {index + 1}
+                  <div key={passenger.id} className="group relative bg-background border border-border/60 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-muted p-1.5 rounded-lg group-hover:bg-primary/10 transition-colors">
+                          <User className="size-3.5 text-muted-foreground group-hover:text-primary" />
+                        </div>
+                        <div className="font-bold text-sm text-foreground">{passenger.fullName}</div>
+                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground/40">
+                        GUEST {index + 1}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Age</span>
-                        <div className="text-xs font-medium">{passenger.age || '—'}</div>
+                    <div className="grid grid-cols-3 gap-y-3 gap-x-2 border-t pt-3 border-border/40">
+                      <InfoItem icon={Clock} label="Age" value={passenger.age} />
+                      <InfoItem icon={ShieldCheck} label="Gender" value={passenger.gender} />
+                      <InfoItem icon={Ship} label="Cabin" value={passenger.cabinType?.replace('_', ' ')} />
+                      <InfoItem icon={Phone} label="Phone" value={passenger.phone} className="col-span-2" />
+                      <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-1.5">
+                           <AlertCircle className="size-3 text-destructive/70" />
+                           <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">Allergies</span>
+                         </div>
+                         <p className={cn("text-xs font-semibold", passenger.foodAllergies && passenger.foodAllergies !== 'None' ? 'text-destructive' : 'text-muted-foreground/60 italic')}>
+                           {passenger.foodAllergies || 'None'}
+                         </p>
                       </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Phone</span>
-                        <div className="text-xs font-medium">{passenger.phone || '—'}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Gender</span>
-                        <div className="text-xs font-medium capitalize">{passenger.gender || '—'}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Cabin Type</span>
-                        <div className="text-xs font-medium text-blue-600/80">{passenger.cabinType?.replace('_', ' ') || '—'}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Allergies</span>
-                        <div className={`text-xs font-medium ${passenger.foodAllergies && passenger.foodAllergies !== 'None' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                          {passenger.foodAllergies || 'None'}
-                        </div>
-                      </div>
-                      <div className="space-y-1 col-span-2">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-tight">Divers Alert Network</span>
-                        {passenger.danId ? (
-                          <div className="text-xs font-medium text-emerald-600">
-                            DAN ID: <span className="font-mono font-bold">{passenger.danId}</span>
-                          </div>
-                        ) : passenger.buyDanInsurance ? (
-                          <div className="text-xs font-medium text-amber-600">
-                            Purchasing DAN Insurance via Palau Sport
-                          </div>
-                        ) : (
-                          <div className="text-xs font-medium text-muted-foreground">—</div>
-                        )}
-                      </div>
+                      { (passenger.danId || passenger.buyDanInsurance) && (
+                         <div className="col-span-3 mt-1 p-2 bg-muted/30 rounded-lg flex items-center gap-2 border border-border/40">
+                            <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">DAN:</span>
+                            <span className="text-[10px] font-mono font-bold text-emerald-600">
+                              {passenger.danId ? `ID: ${passenger.danId}` : 'Palau Sport Insurance'}
+                            </span>
+                         </div>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
-
-            {reservation?.notes && (
-              <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000">
-                <h3 className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">
-                  Notes
-                </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed italic">
-                  &quot;{reservation.notes}&quot;
-                </p>
-              </section>
-            )}
-
-            <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t">
-              <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
-                Actions
-              </h3>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <Button
-                  onClick={handleGenerateInvoice}
-                  disabled={isGenerating || reservation?.invoiceGenerated}
-                  className="w-full sm:w-auto"
-                >
-                  {isGenerating
-                    ? 'Generating...'
-                    : reservation?.invoiceGenerated
-                      ? 'Invoice Generated'
-                      : 'Generate Invoice'}
-                </Button>
-                {reservation?.invoiceGenerated && (
-                  <>
-                    <Button 
-                      onClick={handleDownloadInvoice} 
-                      disabled={isDownloading} 
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                    >
-                      {isDownloading ? 'Downloading...' : 'Download Invoice'}
-                    </Button>
-                    <Button 
-                      onClick={handleDownloadPasses} 
-                      disabled={isDownloadingPasses} 
-                      variant="secondary"
-                      className="w-full sm:w-auto"
-                    >
-                      {isDownloadingPasses ? 'Downloading...' : 'Download Passes'}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </section>
+            </div>
           </div>
         </ScrollArea>
       </DialogContent>
@@ -225,20 +234,43 @@ export function ReservationModal({
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: any }) {
+function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-slate-400 text-xs font-medium uppercase tracking-tighter">{label}</span>
-      <p className="text-slate-900 font-medium">{value}</p>
+    <div className="flex items-center gap-2 mb-4">
+      <div className="bg-primary/10 p-1.5 rounded-lg">
+        <Icon className="size-3.5 text-primary" />
+      </div>
+      <h3 className="text-[11px] font-bold text-foreground uppercase tracking-wider">
+        {title}
+      </h3>
+    </div>
+  )
+}
+
+function InfoItem({ icon: Icon, label, value, className }: { icon?: any; label: string; value: any; className?: string }) {
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      <div className="flex items-center gap-1.5">
+        {Icon && <Icon className="size-3 text-muted-foreground/60" />}
+        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">{label}</span>
+      </div>
+      <p className="text-sm font-semibold text-foreground/90 tabular-nums">
+        {value || <span className="text-muted-foreground font-normal italic">not set</span>}
+      </p>
     </div>
   );
 }
 
-function StatusItem({ label, value }: { label: string; value: any }) {
+function StatusItem({ label, value, className }: { label: string; value: any; className?: string }) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-slate-400 text-xs font-medium uppercase tracking-tighter">{label}</span>
-      <p className="font-bold text-blue-700">{value}</p>
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight">{label}</span>
+      <Badge 
+        variant={value === 'CONFIRMED' || value === 'Invoice' ? 'default' : 'secondary'} 
+        className="w-fit text-[10px] h-5 px-2 font-bold tracking-wide transition-all"
+      >
+        {value}
+      </Badge>
     </div>
   );
 }
