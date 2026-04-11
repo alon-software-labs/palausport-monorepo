@@ -25,14 +25,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Download, Search } from 'lucide-react';
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/components/ui/item';
+import { Download, Search, AlertCircle, Loader2 } from 'lucide-react';
 import { downloadInvoicePDF } from '@/lib/pdf-generator';
 
 type SortOption = 'name' | 'date' | 'price' | 'guests';
 
 export default function ReservationsPage() {
-  const { events, reservations, getInvoicesByReservation } = useAppContext();
+  const { events, reservations, getInvoicesByReservation, isLoading, error } = useAppContext();
 
   const destinations = useMemo(() => Array.from(new Set(events.map(e => e.destination).filter(Boolean))), [events]);
   const [selectedDestination, setSelectedDestination] = useState<string>('');
@@ -122,6 +132,22 @@ export default function ReservationsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Reservations</h1>
         <p className="text-muted-foreground mt-0.5">Manage all cruise reservations</p>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertTitle>Error Loading Data</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {isLoading && (
+        <Alert>
+          <Loader2 className="size-4 animate-spin" />
+          <AlertTitle>Syncing</AlertTitle>
+          <AlertDescription>Updating reservation data from the server...</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -224,56 +250,103 @@ export default function ReservationsPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="border rounded-lg overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Guests</TableHead>
-                    <TableHead>Cabin</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[100px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eventReservations.map((reservation) => (
-                    <TableRow
-                      key={reservation.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedReservation(reservation)}
-                    >
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{reservation.customerName}</p>
-                          <p className="text-xs text-muted-foreground">{reservation.customerEmail}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono tabular-nums">
-                        {reservation.totalGuests}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{reservation.cabinType}</TableCell>
-                      <TableCell>
-                        <Badge variant={reservation.invoiceGenerated ? 'default' : 'secondary'}>
-                          {reservation.invoiceGenerated ? 'Invoice' : 'Pending'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {reservation.invoiceGenerated && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => handleDownloadInvoice(e, reservation)}
-                            disabled={isDownloading}
-                          >
-                            <Download className="size-4" />
-                          </Button>
-                        )}
-                      </TableCell>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Guests</TableHead>
+                      <TableHead>Cabin</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[100px]" />
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {eventReservations.map((reservation) => (
+                      <TableRow
+                        key={reservation.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedReservation(reservation)}
+                      >
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{reservation.customerName}</p>
+                            <p className="text-xs text-muted-foreground">{reservation.customerEmail}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono tabular-nums">
+                          {reservation.totalGuests}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{reservation.cabinType}</TableCell>
+                        <TableCell>
+                          <Badge variant={reservation.invoiceGenerated ? 'default' : 'secondary'}>
+                            {reservation.invoiceGenerated ? 'Invoice' : 'Pending'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {reservation.invoiceGenerated && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => handleDownloadInvoice(e, reservation)}
+                              disabled={isDownloading}
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile List View */}
+              <div className="sm:hidden -mx-6">
+                <ItemGroup>
+                  {eventReservations.map((reservation, index) => (
+                    <div key={reservation.id}>
+                      <Item
+                        className="cursor-pointer"
+                        onClick={() => setSelectedReservation(reservation)}
+                      >
+                        <ItemContent>
+                          <ItemTitle>{reservation.customerName}</ItemTitle>
+                          <ItemDescription>{reservation.customerEmail}</ItemDescription>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge 
+                              variant={reservation.invoiceGenerated ? 'default' : 'secondary'} 
+                              className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-wider"
+                            >
+                              {reservation.invoiceGenerated ? 'Invoice' : 'Pending'}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground font-mono">{reservation.totalGuests} Guests</span>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <span className="text-xs text-muted-foreground">{reservation.cabinType}</span>
+                          </div>
+                        </ItemContent>
+                        {reservation.invoiceGenerated && (
+                          <ItemActions onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => handleDownloadInvoice(e, reservation)}
+                              disabled={isDownloading}
+                              className="size-8 p-0"
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          </ItemActions>
+                        )}
+                      </Item>
+                      {index < eventReservations.length - 1 && <ItemSeparator />}
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
+                </ItemGroup>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -80,7 +80,7 @@ export function ReservationModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[70vh] p-6 pt-4">
+        <ScrollArea className="max-h-[82vh] p-6 pt-4">
           <div className="space-y-8">
             <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
@@ -179,31 +179,47 @@ export function ReservationModal({
                 </p>
               </section>
             )}
+
+            <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t">
+              <h3 className="text-xs font-semibold text-primary mb-4 uppercase tracking-wider">
+                Actions
+              </h3>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <Button
+                  onClick={handleGenerateInvoice}
+                  disabled={isGenerating || reservation?.invoiceGenerated}
+                  className="w-full sm:w-auto"
+                >
+                  {isGenerating
+                    ? 'Generating...'
+                    : reservation?.invoiceGenerated
+                      ? 'Invoice Generated'
+                      : 'Generate Invoice'}
+                </Button>
+                {reservation?.invoiceGenerated && (
+                  <>
+                    <Button 
+                      onClick={handleDownloadInvoice} 
+                      disabled={isDownloading} 
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                    >
+                      {isDownloading ? 'Downloading...' : 'Download Invoice'}
+                    </Button>
+                    <Button 
+                      onClick={handleDownloadPasses} 
+                      disabled={isDownloadingPasses} 
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                    >
+                      {isDownloadingPasses ? 'Downloading...' : 'Download Passes'}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </section>
           </div>
         </ScrollArea>
-
-        <div className="p-6 bg-muted/30 border-t flex items-center justify-end gap-3">
-          <Button
-            onClick={handleGenerateInvoice}
-            disabled={isGenerating || reservation?.invoiceGenerated}
-          >
-            {isGenerating
-              ? 'Generating...'
-              : reservation?.invoiceGenerated
-                ? 'Invoice Generated'
-                : 'Generate Invoice'}
-          </Button>
-          {reservation?.invoiceGenerated && (
-            <>
-              <Button onClick={handleDownloadInvoice} disabled={isDownloading} variant="outline">
-                {isDownloading ? 'Downloading...' : 'Download Invoice'}
-              </Button>
-              <Button onClick={handleDownloadPasses} disabled={isDownloadingPasses} variant="secondary">
-                {isDownloadingPasses ? 'Downloading...' : 'Download Passes'}
-              </Button>
-            </>
-          )}
-        </div>
       </DialogContent>
     </Dialog>
   );
