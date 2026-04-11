@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { createSupabaseJsClient } from "@repo/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +10,11 @@ import HeroBanner from "@/components/HeroBanner";
 import { Navbar } from "@/components/Navbar";
 import { ClientRouteGuard } from "@/components/ClientRouteGuard";
 import { Anchor, ArrowLeft, Paperclip, X, ImageIcon, Loader2 } from "lucide-react";
+import {
+  resolveReservationRouteParam,
+  validateChatReservationRows,
+  type ReservationChatLookupRow,
+} from "@/lib/reservation-grouping";
 
 interface ChatMessage {
   id: number;
@@ -60,14 +66,15 @@ export default function ReservationChat() {
   const fetchReservation = useCallback(async () => {
     if (!id || !currentUser?.email) return;
     const supabase = createSupabaseJsClient();
-    const requestedRowId = Number.parseInt(id, 10);
+    // `/reservations/:id/chat` accepts either a legacy numeric row id or a reservation_group_id UUID.
+    const routeParam = resolveReservationRouteParam(id);
     const query = supabase
       .from("reservations")
       .select("id, reservation_group_id, event_id, cabin_id, customer_email, status, cruise_events(name, date)");
 
-    const { data, error: err } = Number.isNaN(requestedRowId)
-      ? await query.eq("reservation_group_id", id).order("id", { ascending: true })
-      : await query.eq("id", requestedRowId).limit(1);
+    const { data, error: err } = routeParam.groupId
+      ? await query.eq("reservation_group_id", routeParam.groupId).order("id", { ascending: true })
+      : await query.eq("id", routeParam.rowId as number).limit(1);
 
     if (err || !data || data.length === 0) {
       setError("Reservation not found");
@@ -75,16 +82,11 @@ export default function ReservationChat() {
       return;
     }
 
-    const rows = data as unknown as Array<{
+    const rows = data as unknown as Array<ReservationChatLookupRow & {
       id: number;
-      reservation_group_id: string;
-      event_id: number;
-      cabin_id: string;
-      customer_email: string;
-      status: string;
       cruise_events: { name: string; date: string } | { name: string; date: string }[] | null;
     }>;
-    const rowSet = Number.isNaN(requestedRowId)
+    const rowSet = routeParam.groupId
       ? rows
       : await supabase
           .from("reservations")
@@ -93,25 +95,14 @@ export default function ReservationChat() {
           .order("id", { ascending: true })
           .then((result) => (result.data as typeof rows) ?? []);
 
-    if (rowSet.length === 0) {
-      setError("Reservation not found");
+    const validation = validateChatReservationRows(rowSet, currentUser.email);
+    if (validation.ok === false) {
+      setError(validation.error);
       setReservation(null);
       return;
     }
 
     const primary = rowSet[0];
-    if (primary.customer_email !== currentUser.email) {
-      setError("You do not have access to this reservation");
-      setReservation(null);
-      return;
-    }
-
-    if (primary.status !== "PENDING" && primary.status !== "CONFIRMED") {
-      setError("Chat is only available for active reservations");
-      setReservation(null);
-      return;
-    }
-
     setError(null);
     const events = primary.cruise_events;
     const cruiseEvent =
@@ -146,30 +137,77 @@ export default function ReservationChat() {
 
   useEffect(() => {
     if (!reservation || !id) return;
-    fetchMessages(reservation.reservation_group_id);
+    const groupId = reservation.reservation_group_id;
+    fetchMessages(groupId);
 
     const supabase = createSupabaseJsClient();
-    const channel = supabase
-      .channel(`chat-${reservation.reservation_group_id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `reservation_group_id=eq.${reservation.reservation_group_id}`,
-        },
-        (payload) => {
-          const msg = payload.new as ChatMessage;
-          setMessages((prev) =>
-            prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
-          );
+    let isCleanedUp = false;
+    let channel: RealtimeChannel | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    const detachChannel = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+    };
+
+    const scheduleReconnect = () => {
+      if (isCleanedUp || reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (!isCleanedUp) {
+          attachChannel();
         }
-      )
-      .subscribe();
+      }, 1000);
+    };
+
+    const attachChannel = () => {
+      detachChannel();
+      channel = supabase
+        .channel(`chat-${groupId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "chat_messages",
+          },
+          (payload) => {
+            const msg = payload.new as ChatMessage;
+            if (msg.reservation_group_id !== groupId) return;
+            setMessages((prev) =>
+              prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
+            );
+          }
+        )
+        .subscribe((status) => {
+          if (isCleanedUp) return;
+          if (status === "SUBSCRIBED") {
+            // Re-sync in case messages arrived while channel was reconnecting.
+            void fetchMessages(groupId);
+            return;
+          }
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            void fetchMessages(groupId);
+            scheduleReconnect();
+          }
+        });
+    };
+
+    attachChannel();
 
     return () => {
-      supabase.removeChannel(channel);
+      isCleanedUp = true;
+      clearReconnectTimer();
+      detachChannel();
     };
   }, [reservation, id, fetchMessages]);
 

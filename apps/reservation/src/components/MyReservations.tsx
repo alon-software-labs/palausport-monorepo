@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, MessageSquare, Ship } from "lucide-react";
+import { getReservationGroupKey } from "@/lib/reservation-grouping";
 
 interface ReservationRow {
   id: number;
@@ -19,7 +20,7 @@ interface ReservationRow {
   total_guests: number;
   total_price: number;
   created_at: string;
-  cruise_events: { name: string; date: string } | null;
+  cruise_events: { name: string; date: string } | { name: string; date: string }[] | null;
 }
 
 /** One logical booking: multiple DB rows (cabins) share reservation_group_id */
@@ -104,7 +105,7 @@ export function MyReservations() {
   const groupedReservations = useMemo((): GroupedReservation[] => {
     const byGroup = new Map<string, ReservationRow[]>();
     for (const r of reservations) {
-      const gid = r.reservation_group_id ?? `legacy-${r.id}`;
+      const gid = getReservationGroupKey(r);
       const list = byGroup.get(gid) ?? [];
       list.push(r);
       byGroup.set(gid, list);
@@ -113,15 +114,19 @@ export function MyReservations() {
       .map((rows) => {
         const sorted = [...rows].sort((a, b) => a.id - b.id);
         const primary = sorted[0];
+        const gid = getReservationGroupKey(primary);
+        const cruiseEvent = Array.isArray(primary.cruise_events)
+          ? primary.cruise_events[0] ?? null
+          : primary.cruise_events;
         const cabinLabels = sorted.map((x) => x.cabin_id).join(", ");
         return {
-          reservationGroupId: primary.reservation_group_id,
+          reservationGroupId: gid,
           cabinLabels,
           status: primary.status,
           total_guests: primary.total_guests,
           total_price: primary.total_price,
           created_at: primary.created_at,
-          cruise_events: primary.cruise_events,
+          cruise_events: cruiseEvent,
           event_id: primary.event_id,
         };
       })
