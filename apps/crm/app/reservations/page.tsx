@@ -299,7 +299,7 @@ export default function ReservationsPage() {
               </div>
  
               {/* Mobile List View */}
-              <div className="sm:hidden -mx-6">
+              <div className="sm:hidden -mx-4">
                 <ItemGroup>
                   {eventReservations.map((reservation, index) => (
                     <div key={reservation.id}>
