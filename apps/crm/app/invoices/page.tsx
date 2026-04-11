@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useAppContext } from '@/lib/context';
 import { Button } from '@/components/ui/button';
+import { KpiCard } from '@/components/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Download, Search, Ticket } from 'lucide-react';
+import { DollarSign, Download, FileText, Search, Ticket, Users } from 'lucide-react';
 import { downloadInvoicePDF, downloadBoardingPassesPDF } from '@/lib/pdf-generator';
 
 type SortOption = 'date' | 'customer' | 'amount';
@@ -104,31 +105,25 @@ export default function InvoicesPage() {
         <p className="text-muted-foreground mt-0.5">View and manage all generated invoices</p>
       </div>
 
-      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)]">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-mono text-2xl font-semibold tabular-nums">{filteredInvoices.length}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-mono text-2xl font-semibold tabular-nums text-primary">${totalRevenue.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Guests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-mono text-2xl font-semibold tabular-nums">{totalGuests}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-3 gap-[clamp(1rem,3vw,1.5rem)] items-stretch">
+        <KpiCard
+          title="Total Invoices"
+          value={filteredInvoices.length}
+          icon={<FileText />}
+          iconAccent="primary"
+        />
+        <KpiCard
+          title="Total Revenue"
+          value={`$${totalRevenue.toFixed(2)}`}
+          icon={<DollarSign />}
+          variant="primary"
+        />
+        <KpiCard
+          title="Total Guests"
+          value={totalGuests}
+          icon={<Users />}
+          iconAccent="blue"
+        />
       </div>
 
       <Card>
