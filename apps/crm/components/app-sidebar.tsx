@@ -41,7 +41,7 @@ const items = [
     { title: 'Reservations', url: '/reservations', icon: CalendarDays },
     { title: 'Clients', url: '/clients', icon: Users },
     { title: 'Chat', url: '/chat', icon: MessageSquare },
-    { title: 'Invoice History', url: '/invoices', icon: FileText },
+    // { title: 'Invoice History', url: '/invoices', icon: FileText },
 ];
 
 export function AppSidebar() {
