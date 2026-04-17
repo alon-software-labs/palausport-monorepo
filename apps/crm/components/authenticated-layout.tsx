@@ -34,7 +34,7 @@ export function AuthenticatedLayout({
                                 href="/dashboard"
                                 title="PalauSport CRM"
                                 aria-label="PalauSport CRM — Dashboard"
-                                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 -m-1 outline-none ring-ring/40 transition-colors hover:bg-accent/50 focus-visible:ring-2"
+                                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 -m-1 outline-none ring-ring/40 focus-visible:ring-2"
                             >
                                 <img
                                     src={logoUrl.src}

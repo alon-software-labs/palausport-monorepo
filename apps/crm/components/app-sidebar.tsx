@@ -62,7 +62,7 @@ export function AppSidebar() {
                         href="/dashboard"
                         title="PalauSport CRM"
                         aria-label="PalauSport CRM — Dashboard"
-                        className="flex min-w-0 items-center gap-3 rounded-lg p-1 outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1.5"
+                        className="flex min-w-0 items-center gap-3 rounded-lg p-1 outline-none ring-sidebar-ring focus-visible:ring-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1.5"
                     >
                         <img
                             src={logoUrl.src}
