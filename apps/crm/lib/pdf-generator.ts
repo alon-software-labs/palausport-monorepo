@@ -23,7 +23,7 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryColor);
-  doc.text('PalauSports', margin, yPos);
+  doc.text('PalauSport', margin, yPos);
   
   // Header -> Title
   doc.setFontSize(32);
@@ -39,7 +39,7 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   doc.setTextColor(...secondaryColor);
   doc.text('123 Harbor Street', margin, yPos);
   doc.text('Port City, PC 12345', margin, yPos + 5);
-  doc.text('Phone: (555) 123-4567 | Email: info@palausports.com', margin, yPos + 10);
+  doc.text('Phone: (555) 123-4567 | Email: info@palausport.com', margin, yPos + 10);
 
   yPos += 20;
 
@@ -281,7 +281,7 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...secondaryColor);
-  doc.text('Thank you for choosing PalauSports!', pageWidth / 2, yPos, { align: 'center' });
+  doc.text('Thank you for choosing PalauSport!', pageWidth / 2, yPos, { align: 'center' });
   yPos += 5;
   doc.text('If you have any questions about this invoice, please contact support.', pageWidth / 2, yPos, { align: 'center' });
 
@@ -330,7 +330,7 @@ export function generateBoardingPassesPDF(reservation: Reservation, event?: Crui
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(255, 255, 255);
-      doc.text('PalauSports', 10, 10);
+      doc.text('', 10, 10);
       
       const ticketNumber = `TKT-${reservation.id.slice(0, 4).toUpperCase()}-${index + 1}`; 
       doc.setFontSize(12);
