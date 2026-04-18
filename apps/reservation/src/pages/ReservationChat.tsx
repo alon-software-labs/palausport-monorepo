@@ -180,10 +180,10 @@ export default function ReservationChat() {
             event: "INSERT",
             schema: "public",
             table: "chat_messages",
+            filter: `reservation_group_id=eq.${groupId}`,
           },
           (payload) => {
             const msg = payload.new as ChatMessage;
-            if (msg.reservation_group_id !== groupId) return;
             setMessages((prev) =>
               prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
             );
