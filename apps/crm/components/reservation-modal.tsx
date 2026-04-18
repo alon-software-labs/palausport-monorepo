@@ -167,22 +167,22 @@ export function ReservationModal({
               <section className="animate-in fade-in slide-in-from-bottom-2 duration-1000 pt-6 border-t border-border/80">
                 <SectionHeader icon={Activity} title="Actions" />
                 <div className="flex flex-col gap-2">
-                  {!invoiceReady ? (
-                    <Button
-                      onClick={handleGenerateInvoice}
-                      disabled={isGenerating}
-                      className="w-full justify-center gap-2 h-9 text-xs transition-all duration-300 shadow-sm"
-                      variant="default"
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <CreditCard className="size-3" />
-                      )}
-                      {isGenerating ? 'Generating...' : 'Generate Invoice'}
-                    </Button>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
+                  <div className="grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
+                    {!invoiceReady ? (
+                      <Button
+                        onClick={handleGenerateInvoice}
+                        disabled={isGenerating}
+                        className="gap-2 h-8 text-[11px] justify-center transition-all duration-300 shadow-sm"
+                        variant="default"
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <CreditCard className="size-3" />
+                        )}
+                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                      </Button>
+                    ) : (
                       <Button
                         onClick={handleDownloadInvoice}
                         disabled={isDownloading}
@@ -192,17 +192,17 @@ export function ReservationModal({
                       >
                         <Download className="size-3" /> Invoice
                       </Button>
-                      <Button
-                        onClick={handleDownloadPasses}
-                        disabled={isDownloadingPasses}
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 h-8 text-[11px] justify-center bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-all duration-300"
-                      >
-                        <FileText className="size-3" /> Passes
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                    <Button
+                      onClick={handleDownloadPasses}
+                      disabled={isDownloadingPasses}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 h-8 text-[11px] justify-center bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 transition-all duration-300"
+                    >
+                      <FileText className="size-3" /> Passes
+                    </Button>
+                  </div>
                 </div>
               </section>
             </div>
@@ -213,7 +213,7 @@ export function ReservationModal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {reservation?.passengers.map((passenger: any, index: number) => (
                   <div
-                    key={passenger.id}
+                    key={`${passenger.id != null ? String(passenger.id) : 'passenger'}-${index}`}
                     className="group relative bg-background border border-border/60 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300"
                   >
                     <div className="flex items-center justify-between mb-3">
