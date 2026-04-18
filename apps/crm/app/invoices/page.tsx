@@ -66,21 +66,21 @@ export default function InvoicesPage() {
     return sorted;
   }, [invoices, searchQuery, sortBy]);
 
-  const handleDownload = (invoiceId: string) => {
+  const handleDownload = async (invoiceId: string) => {
     const invoice = invoices.find(i => i.id === invoiceId);
     const reservation = reservations.find(r => r.id === invoice?.reservationId);
 
     if (invoice && reservation) {
       setIsDownloading(invoiceId);
       try {
-        downloadInvoicePDF(invoice, reservation);
+        await downloadInvoicePDF(invoice, reservation);
       } finally {
         setIsDownloading(null);
       }
     }
   };
 
-  const handleDownloadPasses = (invoiceId: string) => {
+  const handleDownloadPasses = async (invoiceId: string) => {
     const invoice = invoices.find(i => i.id === invoiceId);
     const reservation = reservations.find(r => r.id === invoice?.reservationId);
     const event = reservation ? getEvent(reservation.eventId) : undefined;
@@ -88,7 +88,7 @@ export default function InvoicesPage() {
     if (invoice && reservation) {
       setIsDownloadingPasses(invoiceId);
       try {
-        downloadBoardingPassesPDF(reservation, event);
+        await downloadBoardingPassesPDF(reservation, event);
       } finally {
         setIsDownloadingPasses(null);
       }

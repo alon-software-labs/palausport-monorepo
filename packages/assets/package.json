@@ -1,0 +1,9 @@
+{
+  "name": "@repo/assets",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./favicon.ico": "./src/favicon.ico",
+    "./logo.webp": "./src/logo.webp"
+  }
+}

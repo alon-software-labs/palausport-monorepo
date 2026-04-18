@@ -34,13 +34,14 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import logoUrl from '@repo/assets/logo.webp';
 
 const items = [
     { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
     { title: 'Reservations', url: '/reservations', icon: CalendarDays },
     { title: 'Clients', url: '/clients', icon: Users },
     { title: 'Chat', url: '/chat', icon: MessageSquare },
-    { title: 'Invoice History', url: '/invoices', icon: FileText },
+    // { title: 'Invoice History', url: '/invoices', icon: FileText },
 ];
 
 export function AppSidebar() {
@@ -56,13 +57,29 @@ export function AppSidebar() {
         /* hidden on mobile — bottom nav is used instead */
         <div className="hidden lg:contents">
             <Sidebar collapsible="icon">
-                <SidebarHeader className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-2.5 font-bold text-lg text-sidebar-foreground">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shrink-0">
-                            <LayoutDashboard size={20} />
+                <SidebarHeader className="border-sidebar-border border-b p-4 group-data-[collapsible=icon]:border-b-0 group-data-[collapsible=icon]:p-2">
+                    <Link
+                        href="/dashboard"
+                        title="PalauSport CRM"
+                        aria-label="PalauSport CRM — Dashboard"
+                        className="flex min-w-0 items-center gap-3 rounded-lg p-1 outline-none ring-sidebar-ring focus-visible:ring-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1.5"
+                    >
+                        <img
+                            src={logoUrl.src}
+                            alt=""
+                            width={160}
+                            height={48}
+                            className="h-12 w-auto shrink-0 object-contain object-left group-data-[collapsible=icon]:h-9 group-data-[collapsible=icon]:w-9 group-data-[collapsible=icon]:max-w-9"
+                        />
+                        <div className="min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
+                            <div className="truncate font-semibold text-lg tracking-tight text-sidebar-foreground">
+                                PalauSport
+                            </div>
+                            <div className="text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                CRM
+                            </div>
                         </div>
-                        <span className="group-data-[collapsible=icon]:hidden tracking-tight">PalauSport</span>
-                    </div>
+                    </Link>
                 </SidebarHeader>
 
                 <SidebarContent>

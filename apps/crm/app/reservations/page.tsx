@@ -132,13 +132,13 @@ export default function ReservationsPage() {
     setTimeout(() => setInvoiceGenerated(false), 2000);
   };
 
-  const handleDownloadInvoice = (e: React.MouseEvent, reservation: Reservation) => {
+  const handleDownloadInvoice = async (e: React.MouseEvent, reservation: Reservation) => {
     e.stopPropagation();
     setIsDownloading(true);
     try {
       const invoices = getInvoicesByReservation(reservation.id);
       if (invoices.length > 0) {
-        downloadInvoicePDF(invoices[0], reservation);
+        await downloadInvoicePDF(invoices[0], reservation);
       }
     } finally {
       setIsDownloading(false);

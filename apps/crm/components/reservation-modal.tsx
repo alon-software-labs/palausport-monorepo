@@ -74,24 +74,24 @@ export function ReservationModal({
     }
   };
 
-  const handleDownloadInvoice = () => {
+  const handleDownloadInvoice = async () => {
     if (!reservation) return;
     setIsDownloading(true);
     try {
       const invoices = getInvoicesByReservation(reservation.id);
       if (invoices.length > 0) {
-        downloadInvoicePDF(invoices[0], reservation);
+        await downloadInvoicePDF(invoices[0], reservation);
       }
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const handleDownloadPasses = () => {
+  const handleDownloadPasses = async () => {
     if (!reservation) return;
     setIsDownloadingPasses(true);
     try {
-      downloadBoardingPassesPDF(reservation, event ?? undefined);
+      await downloadBoardingPassesPDF(reservation, event ?? undefined);
     } finally {
       setIsDownloadingPasses(false);
     }

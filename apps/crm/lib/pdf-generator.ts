@@ -1,7 +1,70 @@
 import { jsPDF } from 'jspdf';
+import logoAsset from '@repo/assets/logo.webp';
 import { Reservation, Invoice, CruiseEvent } from './types';
 
-export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): any {
+/** PNG data URL + pixel size — WebP passed straight into jsPDF loses alpha (black matte); PNG does not. */
+type PdfLogo = { dataUrl: string; width: number; height: number };
+
+function fitImageSize(
+  imgWidth: number,
+  imgHeight: number,
+  maxW: number,
+  maxH: number
+): { w: number; h: number } {
+  if (!imgWidth || !imgHeight) return { w: maxW, h: maxH };
+  const ratio = imgWidth / imgHeight;
+  let w = maxW;
+  let h = w / ratio;
+  if (h > maxH) {
+    h = maxH;
+    w = h * ratio;
+  }
+  return { w, h };
+}
+
+/**
+ * Loads the logo and encodes it as PNG (preserves transparency; jsPDF mishandles WebP alpha).
+ */
+function loadPalauSportLogo(): Promise<PdfLogo | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) {
+        resolve(null);
+        return;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      try {
+        ctx.drawImage(img, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          width: w,
+          height: h,
+        });
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = logoAsset.src;
+  });
+}
+
+export function generateInvoicePDF(
+  invoice: Invoice,
+  reservation: Reservation,
+  logo?: PdfLogo | null
+): any {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -19,19 +82,35 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   const lightGrayColor: [number, number, number] = [243, 244, 246]; // gray-100
   const lineGrayColor: [number, number, number] = [229, 231, 235]; // gray-200
 
-  // Header -> Logo / Company Name
-  doc.setFontSize(28);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...primaryColor);
-  doc.text('PalauSports', margin, yPos);
-  
-  // Header -> Title
-  doc.setFontSize(32);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('INVOICE', pageWidth - margin, yPos, { align: 'right' });
-  
-  yPos += 8;
+  // Header -> Logo + wordmark (left) | INVOICE (right)
+  let headerContentBottom = yPos;
+  if (logo) {
+    const { w, h } = fitImageSize(logo.width, logo.height, 40, 14);
+    doc.addImage(logo.dataUrl, 'PNG', margin, margin, w, h);
+    const gap = 4;
+    const rowBaseline = margin + h * 0.72;
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('PalauSport', margin + w + gap, rowBaseline);
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('INVOICE', pageWidth - margin, rowBaseline, { align: 'right' });
+    headerContentBottom = margin + h;
+  } else {
+    doc.setFontSize(28);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('PalauSport', margin, yPos);
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('INVOICE', pageWidth - margin, yPos, { align: 'right' });
+    headerContentBottom = yPos + 6;
+  }
+
+  yPos = headerContentBottom + 6;
 
   // Business Location (beside/below logo)
   doc.setFontSize(10);
@@ -39,7 +118,7 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   doc.setTextColor(...secondaryColor);
   doc.text('123 Harbor Street', margin, yPos);
   doc.text('Port City, PC 12345', margin, yPos + 5);
-  doc.text('Phone: (555) 123-4567 | Email: info@palausports.com', margin, yPos + 10);
+  doc.text('Phone: (555) 123-4567 | Email: info@palausport.com', margin, yPos + 10);
 
   yPos += 20;
 
@@ -281,22 +360,27 @@ export function generateInvoicePDF(invoice: Invoice, reservation: Reservation): 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...secondaryColor);
-  doc.text('Thank you for choosing PalauSports!', pageWidth / 2, yPos, { align: 'center' });
+  doc.text('Thank you for choosing PalauSport!', pageWidth / 2, yPos, { align: 'center' });
   yPos += 5;
   doc.text('If you have any questions about this invoice, please contact support.', pageWidth / 2, yPos, { align: 'center' });
 
   return doc;
 }
 
-export function downloadInvoicePDF(invoice: Invoice, reservation: Reservation) {
-  const doc = generateInvoicePDF(invoice, reservation);
+export async function downloadInvoicePDF(invoice: Invoice, reservation: Reservation) {
+  const logo = await loadPalauSportLogo();
+  const doc = generateInvoicePDF(invoice, reservation, logo);
   const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-export function generateBoardingPassesPDF(reservation: Reservation, event?: CruiseEvent): any {
+export function generateBoardingPassesPDF(
+  reservation: Reservation,
+  event?: CruiseEvent,
+  logo?: PdfLogo | null
+): any {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -321,19 +405,32 @@ export function generateBoardingPassesPDF(reservation: Reservation, event?: Crui
       // -----------------------------------------------------------------
       // MAIN CARD AREA (Left side)
       // -----------------------------------------------------------------
-      // Banner top
+      // Banner top (brand + ticket # — historically only an empty text slot lived here before the logo)
+      const bannerH = 15;
+      const bannerPad = 10;
       doc.setFillColor(...primaryColor);
-      doc.rect(0, 0, pageWidth, 15, 'F');
-      
-      const mainSectionWidth = pageWidth - 65; // 145mm for main, 65mm for stub
-      
-      doc.setFontSize(16);
+      doc.rect(0, 0, pageWidth, bannerH, 'F');
+
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(255, 255, 255);
-      doc.text('PalauSports', 10, 10);
-      
-      const ticketNumber = `TKT-${reservation.id.slice(0, 4).toUpperCase()}-${index + 1}`; 
+      const brandBaseline = bannerH * 0.68;
+      if (logo) {
+        const { w, h } = fitImageSize(logo.width, logo.height, 48, 10);
+        const logoY = (bannerH - h) / 2;
+        doc.addImage(logo.dataUrl, 'PNG', bannerPad, logoY, w, h);
+        doc.setFontSize(16);
+        doc.text('PalauSport', bannerPad + w + 4, brandBaseline);
+      } else {
+        doc.setFontSize(16);
+        doc.text('PalauSport', bannerPad, brandBaseline);
+      }
+
+      const mainSectionWidth = pageWidth - 65; // 145mm for main, 65mm for stub
+
+      const ticketNumber = `TKT-${reservation.id.slice(0, 4).toUpperCase()}-${index + 1}`;
       doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
       // Top right of the whole pass layout (stub)
       doc.text(ticketNumber, pageWidth - 10, 10, { align: 'right' });
       
@@ -485,8 +582,9 @@ export function generateBoardingPassesPDF(reservation: Reservation, event?: Crui
   return doc;
 }
 
-export function downloadBoardingPassesPDF(reservation: Reservation, event?: CruiseEvent) {
-  const doc = generateBoardingPassesPDF(reservation, event);
+export async function downloadBoardingPassesPDF(reservation: Reservation, event?: CruiseEvent) {
+  const logo = await loadPalauSportLogo();
+  const doc = generateBoardingPassesPDF(reservation, event, logo);
   const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');

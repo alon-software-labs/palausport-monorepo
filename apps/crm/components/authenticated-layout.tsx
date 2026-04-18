@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { AppSidebar } from '@/components/app-sidebar';
 import { MobileBottomNav } from '@/components/mobile-bottom-nav';
 import { SidebarTrigger, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ProtectedRoute } from '@/components/protected-route';
+import logoUrl from '@repo/assets/logo.webp';
 
 export function AuthenticatedLayout({
     children,
@@ -28,14 +30,28 @@ export function AuthenticatedLayout({
 
                         {/* Mobile top bar */}
                         <header className="lg:hidden flex h-14 shrink-0 items-center justify-between border-b px-4 gap-2 bg-background/95 backdrop-blur-sm sticky top-0 z-20 w-full">
-                            <div className="flex items-center gap-2.5">
-                                <div className="flex size-7 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shrink-0">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>
-                                    </svg>
+                            <Link
+                                href="/dashboard"
+                                title="PalauSport CRM"
+                                aria-label="PalauSport CRM — Dashboard"
+                                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 -m-1 outline-none ring-ring/40 focus-visible:ring-2"
+                            >
+                                <img
+                                    src={logoUrl.src}
+                                    alt=""
+                                    width={144}
+                                    height={40}
+                                    className="h-9 w-auto shrink-0 object-contain object-left"
+                                />
+                                <div className="min-w-0 leading-tight">
+                                    <div className="truncate font-semibold text-base tracking-tight text-foreground">
+                                        PalauSport
+                                    </div>
+                                    <div className="text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        CRM
+                                    </div>
                                 </div>
-                                <span className="font-bold text-base tracking-tight text-foreground">PalauSport</span>
-                            </div>
+                            </Link>
                         </header>
 
                         {/* Page content — extra bottom padding on mobile for bottom nav */}

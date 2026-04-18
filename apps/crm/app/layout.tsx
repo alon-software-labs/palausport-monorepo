@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Outfit, IBM_Plex_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProvider } from '@/lib/context'
+import faviconUrl from '@repo/assets/favicon.ico'
 import './globals.css'
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' });
@@ -12,21 +13,8 @@ export const metadata: Metadata = {
   description: 'Manage cruise reservations, guests, and invoices',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: [{ url: faviconUrl.src, type: 'image/x-icon' }],
+    apple: faviconUrl.src,
   },
 }
 
