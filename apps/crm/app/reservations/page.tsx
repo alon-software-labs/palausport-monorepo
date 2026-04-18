@@ -37,13 +37,13 @@ import {
   ItemSeparator,
   ItemTitle,
 } from '@/components/ui/item';
-import { Download, Search, AlertCircle, Loader2, User, Mail, Phone, Users, Ship } from 'lucide-react';
-import { downloadInvoicePDF } from '@/lib/pdf-generator';
+import { Download, Search, AlertCircle, Loader2, User, Mail, Phone, Users, Ship, Ticket } from 'lucide-react';
+import { downloadInvoicePDF, downloadBoardingPassesPDF } from '@/lib/pdf-generator';
 
 type SortOption = 'name' | 'date' | 'price' | 'guests';
 
 export default function ReservationsPage() {
-  const { events, reservations, getInvoicesByReservation, isLoading, error } = useAppContext();
+  const { events, reservations, getInvoicesByReservation, getEvent, isLoading, error } = useAppContext();
 
   const destinations = useMemo(() => Array.from(new Set(events.map(e => e.destination).filter(Boolean))), [events]);
   const [selectedDestination, setSelectedDestination] = useState<string>('');
@@ -76,6 +76,7 @@ export default function ReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [invoiceGenerated, setInvoiceGenerated] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingPasses, setIsDownloadingPasses] = useState<string | null>(null);
 
   const eventReservations = useMemo(() => {
     const grouped = new Map<string, Reservation[]>();
@@ -142,6 +143,17 @@ export default function ReservationsPage() {
       }
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadPasses = async (e: React.MouseEvent, reservation: Reservation) => {
+    e.stopPropagation();
+    const event = getEvent(reservation.eventId);
+    setIsDownloadingPasses(reservation.id);
+    try {
+      await downloadBoardingPassesPDF(reservation, event ?? undefined);
+    } finally {
+      setIsDownloadingPasses(null);
     }
   };
 
@@ -279,7 +291,7 @@ export default function ReservationsPage() {
                       <TableHead>Guests</TableHead>
                       <TableHead>Cabins</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-[100px]" />
+                      <TableHead className="w-[140px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -315,16 +327,28 @@ export default function ReservationsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          {reservation.invoiceGenerated && (
+                          <div className="flex items-center justify-end gap-1">
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={(e) => handleDownloadInvoice(e, reservation)}
-                              disabled={isDownloading}
+                              onClick={(e) => handleDownloadPasses(e, reservation)}
+                              disabled={isDownloadingPasses === reservation.id || isDownloading}
+                              title="Download Boarding Passes"
                             >
-                              <Download className="size-4" />
+                              <Ticket className="size-4" />
                             </Button>
-                          )}
+                            {reservation.invoiceGenerated && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => handleDownloadInvoice(e, reservation)}
+                                disabled={isDownloading || isDownloadingPasses === reservation.id}
+                                title="Download Invoice PDF"
+                              >
+                                <Download className="size-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -371,6 +395,28 @@ export default function ReservationsPage() {
                             </div>
                           </div>
                         </ItemContent>
+                        <ItemActions>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => handleDownloadPasses(e, reservation)}
+                            disabled={isDownloadingPasses === reservation.id || isDownloading}
+                            title="Download Boarding Passes"
+                          >
+                            <Ticket className="size-4" />
+                          </Button>
+                          {reservation.invoiceGenerated && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => handleDownloadInvoice(e, reservation)}
+                              disabled={isDownloading || isDownloadingPasses === reservation.id}
+                              title="Download Invoice PDF"
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          )}
+                        </ItemActions>
                       </Item>
                       {index < eventReservations.length - 1 && (
                         <div className="px-4">
